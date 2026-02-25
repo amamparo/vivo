@@ -41,10 +41,15 @@ def create_app(container: injector.Injector) -> FastAPI:
             try:
                 await bridge.refresh_tracks()
                 bridge.start_listeners(list(mixer.state.tracks.keys()))
-                data = json.dumps(mixer.get_mixes())
-                for ws in list(client_mix_groups):
+                mixes_data = json.dumps(mixer.get_mixes())
+                for ws, group_index in list(client_mix_groups.items()):
                     try:
-                        await ws.send_text(data)
+                        await ws.send_text(mixes_data)
+                        if group_index is not None:
+                            state = mixer.get_mix_state(group_index)
+                            if not state["master"]:
+                                client_mix_groups[ws] = None
+                            await ws.send_text(json.dumps(state))
                     except Exception:
                         pass
             except Exception:

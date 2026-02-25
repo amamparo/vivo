@@ -8,8 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 just install        # Create .venv, poetry install, npm install
 just build          # Build Svelte UI to ui/dist
 just run            # Serve on :8000 (requires built UI)
-just dev            # FastAPI with auto-reload
-just dev-ui         # Vite dev server with HMR
+just dev            # Server + UI with file-watching
+just dev-server     # FastAPI with auto-reload only
+just dev-ui         # Vite dev server with HMR only
 just test           # Run pytest + vitest suites
 just check          # Run svelte-check
 just setup          # Install AbletonOSC Remote Script into Ableton
@@ -21,11 +22,15 @@ Run a single UI test: `cd ui && npx vitest run -t "test name"`
 
 Poetry requires a workaround due to pyenv: the justfile sets `VIRTUAL_ENV` and `PATH` explicitly. Use `just` commands rather than bare `poetry run`.
 
+## Logs
+
+`just dev`, `just dev-ui`, and `just run` write output to `logs/server.log` and `logs/ui.log` (gitignored). Read these files to diagnose runtime errors.
+
 ## Architecture
 
 **Communication chain:** Svelte UI ↔ WebSocket ↔ FastAPI ↔ OSC ↔ Ableton Live
 
-A **mix** is an Ableton group track. The group track's name is the mix name, its fader is the master output, and its child tracks are the mixer channels.
+A **mix** is an Ableton group track that contains at least one non-group child track. The group track's name is the mix name, its fader is the master output, and its child tracks are the mixer channels. Mixes can be nested inside an organizational parent group (e.g. a "Monitor" group) — the parent is excluded from mix detection because it only contains group children.
 
 ### Backend (`server/`)
 
@@ -34,7 +39,7 @@ A **mix** is an Ableton group track. The group track's name is the mix name, its
 - **mixer_service.py** — `MixerService` holds all business logic. Injected with `AbletonState`, `SoloManager`, `AbletonBridge`.
 - **bridge.py** — `AbletonBridge` ABC defines the interface (`set_volume`, `set_mute`, `start_listeners`, `stop_all_listeners`, `startup`, `shutdown`, `refresh_tracks`). `AbletonOSCBridge` is the real implementation using python-osc (send port 11000, listen port 11001).
 - **solo_manager.py** — Faux-solo: mutes sibling tracks instead of using Ableton's native solo (which would solo globally across all mixes). Snapshots pre-solo mute states on first solo, restores them when the last solo is toggled off.
-- **models.py** — `Track` dataclass and `AbletonState` (track storage with `get_group_tracks()` and `get_children(group_index)`).
+- **models.py** — `Track` dataclass and `AbletonState` (track storage with `get_mix_tracks()` and `get_children(group_index)`).
 
 ### Frontend (`ui/src/`)
 

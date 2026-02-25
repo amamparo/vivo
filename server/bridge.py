@@ -135,6 +135,8 @@ class AbletonOSCBridge(AbletonBridge):
                 meter_right=old.meter_right if old else 0.0,
             )
 
+        self._listeners_started.clear()
+
         for i in range(num_tracks):
             self._send("/live/track/get/volume", i)
 

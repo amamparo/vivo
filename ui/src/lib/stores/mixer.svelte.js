@@ -10,8 +10,14 @@ onMessage((msg) => {
   if (msg.type === 'mixes') {
     mixes = msg.mixes
   } else if (msg.type === 'mix_state') {
-    master = msg.master
-    tracks = msg.tracks
+    if (!msg.master) {
+      selectedGroupIndex = -1
+      master = null
+      tracks = []
+    } else {
+      master = msg.master
+      tracks = msg.tracks
+    }
   } else if (msg.type === 'meters') {
     meters = msg.levels
   }
@@ -49,10 +55,19 @@ export function goBack() {
 }
 
 export function setVolume(trackIndex, volume) {
+  tracks = tracks.map(t =>
+    t.index === trackIndex ? { ...t, volume } : t
+  )
+  if (master?.index === trackIndex) {
+    master = { ...master, volume }
+  }
   send({ type: 'set_volume', track_index: trackIndex, volume })
 }
 
 export function setMute(trackIndex, mute) {
+  tracks = tracks.map(t =>
+    t.index === trackIndex ? { ...t, mute } : t
+  )
   send({ type: 'set_mute', track_index: trackIndex, mute })
 }
 

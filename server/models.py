@@ -19,8 +19,13 @@ class AbletonState:
     def __init__(self) -> None:
         self.tracks: dict[int, Track] = {}
 
-    def get_group_tracks(self) -> list[Track]:
-        return [t for t in self.tracks.values() if t.is_group]
+    def get_mix_tracks(self) -> list[Track]:
+        return [
+            t for t in self.tracks.values()
+            if t.is_group and any(
+                not c.is_group for c in self.get_children(t.index)
+            )
+        ]
 
     def get_children(self, group_index: int) -> list[Track]:
         return sorted(

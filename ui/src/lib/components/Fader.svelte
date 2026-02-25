@@ -1,45 +1,49 @@
 <script>
+  import { tick } from 'svelte'
   import { volToFaderPos, faderPosToVol, abletonVolToDbStr, UNITY_POS, UNITY_VOL_ABLETON } from '$lib/helpers.js'
 
   let { value = 0, onchange, large = false } = $props()
 
   const TAP_THRESHOLD = 5
 
-  let dragging = $state(false)
   let rangeEl = $state(null)
-  let isDrag = false
+  let interacting = $state(false)
   let pointerStartY = 0
   let valueAtDown = '0'
+  let isDrag = false
+  let finished = false
   let lastTapTime = 0
 
-  let displayPos = $derived(dragging ? undefined : volToFaderPos(value))
-
   function handlePointerDown(e) {
+    interacting = true
+    finished = false
     pointerStartY = e.clientY
     valueAtDown = rangeEl.value
     isDrag = false
   }
 
   function handlePointerMove(e) {
-    if (isDrag) return
+    if (!interacting || isDrag) return
     if (Math.abs(e.clientY - pointerStartY) > TAP_THRESHOLD) {
       isDrag = true
-      dragging = true
     }
   }
 
   function handleInput(e) {
+    if (finished) return
     if (!isDrag) {
-      rangeEl.value = valueAtDown
+      if (interacting) {
+        rangeEl.value = valueAtDown
+      }
       return
     }
-    dragging = true
-    const pos = parseFloat(e.target.value)
-    const vol = faderPosToVol(pos)
-    onchange?.(vol)
+    onchange?.(faderPosToVol(parseFloat(e.target.value)))
   }
 
-  function handlePointerUp() {
+  async function handlePointerUp() {
+    if (!interacting) return
+    finished = true
+    const finalPos = rangeEl.value
     if (!isDrag) {
       const now = Date.now()
       if (now - lastTapTime < 300) {
@@ -50,17 +54,16 @@
         lastTapTime = now
       }
     } else {
-      const pos = parseFloat(rangeEl.value)
-      const vol = faderPosToVol(pos)
-      onchange?.(vol)
+      onchange?.(faderPosToVol(parseFloat(finalPos)))
     }
     isDrag = false
-    dragging = false
+    await tick()
+    interacting = false
   }
 
   $effect(() => {
-    if (rangeEl && !dragging && displayPos !== undefined) {
-      rangeEl.value = displayPos
+    if (rangeEl && !interacting) {
+      rangeEl.value = volToFaderPos(value)
     }
   })
 </script>
@@ -73,7 +76,6 @@
       bind:this={rangeEl}
       type="range"
       min="0" max="1" step="0.002"
-      value={volToFaderPos(value)}
       oninput={handleInput}
       onpointerdown={handlePointerDown}
       onpointermove={handlePointerMove}

@@ -56,10 +56,11 @@ Open `http://localhost:8000` on your phone (same Wi-Fi network).
 ## Development
 
 ```sh
-just dev-ui   # Vite dev server with HMR
-just dev      # FastAPI with auto-reload
-just test     # Run pytest + vitest suites
-just check    # Run svelte-check
+just dev        # Server + UI with file-watching
+just dev-server # FastAPI with auto-reload only
+just dev-ui     # Vite dev server with HMR only
+just test       # Run pytest + vitest suites
+just check      # Run svelte-check
 ```
 
 ## Project Structure
@@ -79,4 +80,7 @@ ui/                 Svelte 5 frontend (Tailwind CSS v4)
     helpers.js      Volume scaling, dB conversion
     helpers.test.js Vitest suite for volume/meter math
 tests/              Pytest suite (no mocking, uses DI)
+logs/               Runtime logs (gitignored)
+  server.log        FastAPI/uvicorn output
+  ui.log            Vite dev server output
 ```

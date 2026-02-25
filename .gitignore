@@ -20,5 +20,8 @@ ui/dist/
 # Test
 .pytest_cache/
 
+# Logs
+logs/
+
 # AbletonOSC
 AbletonOSC/

@@ -22,7 +22,7 @@ class MixerService:
         return f"#{r:02x}{g:02x}{b:02x}"
 
     def get_mixes(self) -> dict:
-        groups = self.state.get_group_tracks()
+        groups = self.state.get_mix_tracks()
         mixes = []
         for g in groups:
             children = self.state.get_children(g.index)

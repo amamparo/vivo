@@ -28,6 +28,7 @@ class TestGetMixes:
         mixer, state, _ = create_mixer()
         state.tracks = {
             0: make_track(0, name="Sarah's Monitor", is_group=True),
+            1: make_track(1, name="Drums", group_track_index=0),
         }
         assert mixer.get_mixes()["mixes"][0]["name"] == "Sarah's Monitor"
 
@@ -35,8 +36,24 @@ class TestGetMixes:
         mixer, state, _ = create_mixer()
         state.tracks = {
             0: make_track(0, is_group=True, color=0xFF8800),
+            1: make_track(1, group_track_index=0),
         }
         assert mixer.get_mixes()["mixes"][0]["color"] == "#ff8800"
+
+    def test_organizational_parent_group_is_excluded(self):
+        mixer, state, _ = create_mixer()
+        state.tracks = {
+            0: make_track(0, name="Monitor", is_group=True),
+            1: make_track(1, name="Aaron's Mix", is_group=True, group_track_index=0, is_grouped=True),
+            2: make_track(2, name="Drums", group_track_index=1, is_grouped=True),
+            3: make_track(3, name="Sarah's Mix", is_group=True, group_track_index=0, is_grouped=True),
+            4: make_track(4, name="Bass", group_track_index=3, is_grouped=True),
+        }
+        result = mixer.get_mixes()
+        names = [m["name"] for m in result["mixes"]]
+        assert "Monitor" not in names
+        assert "Aaron's Mix" in names
+        assert "Sarah's Mix" in names
 
 
 class TestGetMixState:

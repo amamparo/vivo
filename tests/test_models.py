@@ -2,17 +2,51 @@ from server.models import AbletonState
 from tests.factories import make_track
 
 
-class TestAbletonState:
-    def test_get_group_tracks_returns_only_foldable_tracks(self):
+class TestGetMixTracks:
+    def test_groups_with_non_group_children_are_mixes(self):
         state = AbletonState()
         state.tracks = {
             0: make_track(0, name="Aaron's Mix", is_group=True),
             1: make_track(1, name="Drums", group_track_index=0, is_grouped=True),
             2: make_track(2, name="Sarah's Mix", is_group=True),
+            3: make_track(3, name="Bass", group_track_index=2, is_grouped=True),
         }
-        groups = state.get_group_tracks()
-        assert len(groups) == 2
-        assert {g.name for g in groups} == {"Aaron's Mix", "Sarah's Mix"}
+        mixes = state.get_mix_tracks()
+        assert len(mixes) == 2
+        assert {m.name for m in mixes} == {"Aaron's Mix", "Sarah's Mix"}
+
+    def test_group_with_only_group_children_is_not_a_mix(self):
+        state = AbletonState()
+        state.tracks = {
+            0: make_track(0, name="Monitor", is_group=True),
+            1: make_track(1, name="Aaron's Mix", is_group=True, group_track_index=0, is_grouped=True),
+            2: make_track(2, name="Drums", group_track_index=1, is_grouped=True),
+            3: make_track(3, name="Bass", group_track_index=1, is_grouped=True),
+        }
+        mixes = state.get_mix_tracks()
+        assert len(mixes) == 1
+        assert mixes[0].name == "Aaron's Mix"
+
+    def test_nested_mixes_inside_organizational_group(self):
+        state = AbletonState()
+        state.tracks = {
+            0: make_track(0, name="Monitor", is_group=True),
+            1: make_track(1, name="Aaron's Mix", is_group=True, group_track_index=0, is_grouped=True),
+            2: make_track(2, name="Drums", group_track_index=1, is_grouped=True),
+            3: make_track(3, name="Bass", group_track_index=1, is_grouped=True),
+            4: make_track(4, name="Sarah's Mix", is_group=True, group_track_index=0, is_grouped=True),
+            5: make_track(5, name="Drums", group_track_index=4, is_grouped=True),
+            6: make_track(6, name="Keys", group_track_index=4, is_grouped=True),
+        }
+        mixes = state.get_mix_tracks()
+        assert {m.name for m in mixes} == {"Aaron's Mix", "Sarah's Mix"}
+
+    def test_empty_group_is_not_a_mix(self):
+        state = AbletonState()
+        state.tracks = {
+            0: make_track(0, name="Empty Group", is_group=True),
+        }
+        assert state.get_mix_tracks() == []
 
     def test_get_children_returns_tracks_belonging_to_group(self):
         state = AbletonState()
