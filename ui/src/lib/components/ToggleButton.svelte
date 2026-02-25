@@ -1,10 +1,10 @@
 <script>
-  let { label, active = false, onclick } = $props()
+  let { label, active = false, activeClass = 'bg-red-600 text-white', onclick } = $props()
 </script>
 
 <button
   type="button"
-  class="min-w-[44px] min-h-[44px] px-3 py-2 rounded text-sm font-bold transition-colors {active ? 'bg-red-600 text-white' : 'bg-neutral-800 text-neutral-400'}"
+  class="min-w-[36px] min-h-[36px] px-2 py-1 rounded text-xs font-bold transition-colors {active ? activeClass : 'bg-neutral-800 text-neutral-400'}"
   {onclick}
 >
   {label}

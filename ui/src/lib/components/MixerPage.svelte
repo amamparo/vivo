@@ -10,28 +10,22 @@
 
 <div class="min-h-screen flex flex-col">
   <!-- Header -->
-  <div class="flex items-center gap-3 p-4 shrink-0">
+  <div class="flex items-center px-4 py-2 shrink-0">
     <button
       type="button"
       onclick={goBack}
-      class="min-w-[44px] min-h-[44px] flex items-center justify-center text-neutral-400 active:text-neutral-200"
+      class="min-h-[44px] flex items-center gap-2 text-neutral-400 active:text-neutral-200"
     >
       <span class="text-lg">&larr;</span>
+      <span class="text-xl font-bold text-neutral-200">{master?.name ?? ''}</span>
     </button>
-    <span class="text-xl font-bold text-neutral-200">{master?.name ?? ''}</span>
   </div>
 
-  <!-- Master output -->
-  <div class="px-4 shrink-0">
+  <!-- Tracks stacked vertically -->
+  <div class="flex flex-col gap-1.5 px-2 pb-4">
     <MasterOutput />
-  </div>
-
-  <!-- Channel strips — horizontally scrollable -->
-  <div class="flex-1 overflow-x-auto px-4 py-4">
-    <div class="flex gap-2 pb-2">
-      {#each tracks as track (track.index)}
-        <ChannelStrip {track} {anySoloed} />
-      {/each}
-    </div>
+    {#each tracks as track (track.index)}
+      <ChannelStrip {track} {anySoloed} />
+    {/each}
   </div>
 </div>

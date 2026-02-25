@@ -1,65 +1,55 @@
 <script>
   import { tick } from 'svelte'
-  import { volToFaderPos, faderPosToVol, abletonVolToDbStr, UNITY_POS, UNITY_VOL_ABLETON } from '$lib/helpers.js'
+  import { DragGesture } from '@use-gesture/vanilla'
+  import { volToFaderPos, faderPosToVol, UNITY_POS, UNITY_VOL_ABLETON } from '$lib/helpers.js'
 
-  let { value = 0, onchange, large = false } = $props()
-
-  const TAP_THRESHOLD = 5
+  let { value = 0, onchange } = $props()
 
   let rangeEl = $state(null)
+  let overlayEl = $state(null)
   let interacting = $state(false)
-  let pointerStartY = 0
-  let valueAtDown = '0'
-  let isDrag = false
-  let finished = false
+  let posAtDown = 0
   let lastTapTime = 0
 
-  function handlePointerDown(e) {
-    interacting = true
-    finished = false
-    pointerStartY = e.clientY
-    valueAtDown = rangeEl.value
-    isDrag = false
-  }
+  $effect(() => {
+    if (!overlayEl) return
 
-  function handlePointerMove(e) {
-    if (!interacting || isDrag) return
-    if (Math.abs(e.clientY - pointerStartY) > TAP_THRESHOLD) {
-      isDrag = true
-    }
-  }
+    const gesture = new DragGesture(overlayEl, (state) => {
+      const { dragging, tap, movement: [mx], first } = state
 
-  function handleInput(e) {
-    if (finished) return
-    if (!isDrag) {
-      if (interacting) {
-        rangeEl.value = valueAtDown
+      if (tap) {
+        const now = Date.now()
+        if (now - lastTapTime < 300) {
+          rangeEl.value = UNITY_POS
+          onchange?.(UNITY_VOL_ABLETON)
+          lastTapTime = 0
+        } else {
+          lastTapTime = now
+        }
+        return
       }
-      return
-    }
-    onchange?.(faderPosToVol(parseFloat(e.target.value)))
-  }
 
-  async function handlePointerUp() {
-    if (!interacting) return
-    finished = true
-    const finalPos = rangeEl.value
-    if (!isDrag) {
-      const now = Date.now()
-      if (now - lastTapTime < 300) {
-        rangeEl.value = UNITY_POS
-        onchange?.(UNITY_VOL_ABLETON)
-        lastTapTime = 0
+      if (first) {
+        interacting = true
+        posAtDown = volToFaderPos(value)
+      }
+
+      if (dragging) {
+        const rect = overlayEl.getBoundingClientRect()
+        const pos = Math.max(0, Math.min(1, posAtDown + mx / rect.width))
+        rangeEl.value = pos
+        onchange?.(faderPosToVol(pos))
       } else {
-        lastTapTime = now
+        tick().then(() => { interacting = false })
       }
-    } else {
-      onchange?.(faderPosToVol(parseFloat(finalPos)))
-    }
-    isDrag = false
-    await tick()
-    interacting = false
-  }
+    }, {
+      filterTaps: true,
+      pointer: { capture: true },
+      threshold: 3,
+    })
+
+    return () => gesture.destroy()
+  })
 
   $effect(() => {
     if (rangeEl && !interacting) {
@@ -68,103 +58,98 @@
   })
 </script>
 
-<div class="flex flex-col items-center gap-1">
-  <div class="relative {large ? 'w-12 h-[220px]' : 'w-10 h-[160px]'}">
-    <div class="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-1.5 rounded-sm bg-[#0a0a0a] shadow-[inset_0_1px_3px_rgba(0,0,0,0.7)] pointer-events-none"></div>
-    <div class="absolute left-1/2 bottom-[70.71%] -translate-x-1/2 translate-y-1/2 z-[1] w-5 h-0.5 bg-neutral-700 pointer-events-none rounded-[1px]"></div>
-    <input
-      bind:this={rangeEl}
-      type="range"
-      min="0" max="1" step="0.002"
-      oninput={handleInput}
-      onpointerdown={handlePointerDown}
-      onpointermove={handlePointerMove}
-      onpointerup={handlePointerUp}
-      class="fader-input appearance-none [writing-mode:vertical-lr] [direction:rtl] bg-transparent w-full h-full m-0 p-0 relative z-[2] touch-none"
-      class:fader-large={large}
-    />
-  </div>
-  <span class="text-[10px] text-neutral-500 font-mono tabular-nums whitespace-nowrap">
-    {abletonVolToDbStr(value)} dB
-  </span>
+<div class="relative h-12 w-full">
+  <div class="absolute top-1/2 left-[1rem] right-[1rem] -translate-y-1/2 h-1.5 rounded-sm bg-[#0a0a0a] shadow-[inset_0_1px_3px_rgba(0,0,0,0.7)] pointer-events-none"></div>
+  <div class="absolute left-[calc(85%-1.05rem)] -translate-x-1/2 bottom-[calc(50%+7px)] z-[1] h-[0.75rem] w-px bg-neutral-700 pointer-events-none"></div>
+  <div class="absolute left-[calc(85%-1.05rem)] -translate-x-1/2 top-[calc(50%+7px)] z-[1] h-[0.75rem] w-px bg-neutral-700 pointer-events-none"></div>
+  <input
+    bind:this={rangeEl}
+    type="range"
+    min="0" max="1" step="0.002"
+    class="fader-input appearance-none bg-transparent w-full h-full m-0 p-0 relative z-[2] pointer-events-none"
+  />
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    bind:this={overlayEl}
+    class="absolute inset-0 z-[3] touch-none"
+  ></div>
 </div>
 
 <style>
   .fader-input::-webkit-slider-runnable-track {
-    width: 6px;
+    height: 6px;
     background: transparent;
   }
   .fader-input::-moz-range-track {
-    width: 6px;
+    height: 6px;
     background: transparent;
   }
   .fader-input::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 2rem;
-    height: 1.25rem;
+    height: 2rem;
+    width: 3rem;
+    margin-top: -13px;
     border-radius: 3px;
     background-image:
-      linear-gradient(to bottom,
-        transparent 28%,
-        rgba(0,0,0,0.4) 28%, rgba(0,0,0,0.4) 30%,
-        rgba(255,255,255,0.25) 30%, rgba(255,255,255,0.25) 32%,
-        transparent 32%,
-        transparent 48%,
-        rgba(0,0,0,0.4) 48%, rgba(0,0,0,0.4) 50%,
-        rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.25) 52%,
-        transparent 52%,
-        transparent 68%,
-        rgba(0,0,0,0.4) 68%, rgba(0,0,0,0.4) 70%,
-        rgba(255,255,255,0.25) 70%, rgba(255,255,255,0.25) 72%,
-        transparent 72%),
       linear-gradient(to right,
-        #e0e0e0 0%, #ccc 20%, #b0b0b0 50%, #bbb 80%, #d0d0d0 100%);
-    background-size: 100% 50%, 100% 100%;
+        transparent 30%,
+        rgba(0,0,0,0.35) 30%, rgba(0,0,0,0.35) 31.5%,
+        rgba(255,255,255,0.2) 31.5%, rgba(255,255,255,0.2) 33%,
+        transparent 33%,
+        transparent 48.5%,
+        rgba(0,0,0,0.35) 48.5%, rgba(0,0,0,0.35) 50%,
+        rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 51.5%,
+        transparent 51.5%,
+        transparent 67%,
+        rgba(0,0,0,0.35) 67%, rgba(0,0,0,0.35) 68.5%,
+        rgba(255,255,255,0.2) 68.5%, rgba(255,255,255,0.2) 70%,
+        transparent 70%),
+      linear-gradient(to bottom,
+        #e8e8e8 0%, #ddd 8%, #c8c8c8 20%, #b0b0b0 45%,
+        #a8a8a8 55%, #b8b8b8 80%, #ccc 92%, #d5d5d5 100%);
+    background-size: 55% 100%, 100% 100%;
     background-position: center center;
     background-repeat: no-repeat;
     box-shadow:
-      0 1px 4px rgba(0,0,0,0.5),
-      0 0 0 0.5px rgba(0,0,0,0.2),
-      inset 0 1px 0 rgba(255,255,255,0.4),
-      inset 0 -1px 0 rgba(0,0,0,0.1);
-  }
-  .fader-large::-webkit-slider-thumb {
-    width: 2.5rem;
-    height: 1.5rem;
+      0 2px 5px rgba(0,0,0,0.5),
+      0 0 0 0.5px rgba(0,0,0,0.25),
+      inset 0 1px 0 rgba(255,255,255,0.5),
+      inset 0 -1px 0 rgba(0,0,0,0.15),
+      inset 1px 0 0 rgba(255,255,255,0.15),
+      inset -1px 0 0 rgba(0,0,0,0.08);
   }
   .fader-input::-moz-range-thumb {
-    width: 2rem;
-    height: 1.25rem;
+    height: 2rem;
+    width: 3rem;
     border: none;
     border-radius: 3px;
     background-image:
-      linear-gradient(to bottom,
-        transparent 28%,
-        rgba(0,0,0,0.4) 28%, rgba(0,0,0,0.4) 30%,
-        rgba(255,255,255,0.25) 30%, rgba(255,255,255,0.25) 32%,
-        transparent 32%,
-        transparent 48%,
-        rgba(0,0,0,0.4) 48%, rgba(0,0,0,0.4) 50%,
-        rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.25) 52%,
-        transparent 52%,
-        transparent 68%,
-        rgba(0,0,0,0.4) 68%, rgba(0,0,0,0.4) 70%,
-        rgba(255,255,255,0.25) 70%, rgba(255,255,255,0.25) 72%,
-        transparent 72%),
       linear-gradient(to right,
-        #e0e0e0 0%, #ccc 20%, #b0b0b0 50%, #bbb 80%, #d0d0d0 100%);
-    background-size: 100% 50%, 100% 100%;
+        transparent 30%,
+        rgba(0,0,0,0.35) 30%, rgba(0,0,0,0.35) 31.5%,
+        rgba(255,255,255,0.2) 31.5%, rgba(255,255,255,0.2) 33%,
+        transparent 33%,
+        transparent 48.5%,
+        rgba(0,0,0,0.35) 48.5%, rgba(0,0,0,0.35) 50%,
+        rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 51.5%,
+        transparent 51.5%,
+        transparent 67%,
+        rgba(0,0,0,0.35) 67%, rgba(0,0,0,0.35) 68.5%,
+        rgba(255,255,255,0.2) 68.5%, rgba(255,255,255,0.2) 70%,
+        transparent 70%),
+      linear-gradient(to bottom,
+        #e8e8e8 0%, #ddd 8%, #c8c8c8 20%, #b0b0b0 45%,
+        #a8a8a8 55%, #b8b8b8 80%, #ccc 92%, #d5d5d5 100%);
+    background-size: 55% 100%, 100% 100%;
     background-position: center center;
     background-repeat: no-repeat;
     box-shadow:
-      0 1px 4px rgba(0,0,0,0.5),
-      0 0 0 0.5px rgba(0,0,0,0.2),
-      inset 0 1px 0 rgba(255,255,255,0.4),
-      inset 0 -1px 0 rgba(0,0,0,0.1);
-  }
-  .fader-large::-moz-range-thumb {
-    width: 2.5rem;
-    height: 1.5rem;
+      0 2px 5px rgba(0,0,0,0.5),
+      0 0 0 0.5px rgba(0,0,0,0.25),
+      inset 0 1px 0 rgba(255,255,255,0.5),
+      inset 0 -1px 0 rgba(0,0,0,0.15),
+      inset 1px 0 0 rgba(255,255,255,0.15),
+      inset -1px 0 0 rgba(0,0,0,0.08);
   }
 </style>

@@ -2,6 +2,7 @@
   import Fader from './Fader.svelte'
   import MeterBar from './MeterBar.svelte'
   import ToggleButton from './ToggleButton.svelte'
+  import { abletonVolToDbStr } from '$lib/helpers.js'
   import { setVolume, setMute, toggleSolo, getMeter } from '$lib/stores/mixer.svelte.js'
 
   let { track, anySoloed = false } = $props()
@@ -23,24 +24,26 @@
 </script>
 
 <div
-  class="flex flex-col items-center gap-2 p-3 rounded-lg bg-neutral-900 min-w-[80px] transition-opacity"
+  class="flex flex-col gap-1 px-3 py-2 rounded-lg bg-neutral-900 transition-opacity"
   style="opacity: {dimmed ? 0.4 : 1};"
 >
-  <!-- Track name with color dot -->
-  <div class="flex items-center gap-1.5 w-full min-h-[20px]">
-    <div class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {track.color}"></div>
-    <span class="text-xs text-neutral-300 truncate">{track.name}</span>
+  <!-- Row 1: name + S/M buttons -->
+  <div class="flex items-center justify-between">
+    <span class="text-xs text-neutral-300 truncate min-w-0">{track.name}</span>
+    <div class="flex gap-1 shrink-0">
+      <ToggleButton label="S" active={track.solo} activeClass="bg-amber-500 text-white" onclick={handleSoloToggle} />
+      <ToggleButton label="M" active={track.mute} onclick={handleMuteToggle} />
+    </div>
   </div>
 
-  <!-- Solo / Mute buttons -->
-  <div class="flex gap-1.5">
-    <ToggleButton label="S" active={track.solo} onclick={handleSoloToggle} />
-    <ToggleButton label="M" active={track.mute} onclick={handleMuteToggle} />
-  </div>
-
-  <!-- Fader and meter side by side -->
-  <div class="flex gap-2 items-stretch">
-    <Fader value={track.volume} onchange={handleVolumeChange} />
-    <MeterBar left={meter.left} right={meter.right} />
+  <!-- Row 2: fader + meter + dB -->
+  <div class="flex items-center gap-2">
+    <div class="flex-1 flex flex-col min-w-0">
+      <Fader value={track.volume} onchange={handleVolumeChange} />
+      <MeterBar left={meter.left} right={meter.right} muted={track.mute} />
+    </div>
+    <span class="text-[10px] text-neutral-500 font-mono tabular-nums whitespace-nowrap shrink-0 w-12 text-right">
+      {abletonVolToDbStr(track.volume)} dB
+    </span>
   </div>
 </div>

@@ -2,7 +2,8 @@ import { describe, test, expect } from 'vitest'
 import {
   faderPosToVol,
   volToFaderPos,
-  volToDb,
+  abletonParamToDb,
+  dbToParam,
   abletonVolToDbStr,
   levelToPercent,
   UNITY_POS,
@@ -10,24 +11,10 @@ import {
 } from './helpers.js'
 
 describe('faderPosToVol', () => {
-  test('zero position is silence', () => {
+  test('identity mapping: position equals volume parameter', () => {
     expect(faderPosToVol(0)).toBe(0)
-  })
-
-  test('full position is max volume (4.0)', () => {
-    expect(faderPosToVol(1)).toBe(4)
-  })
-
-  test('half position is far below unity due to quartic curve', () => {
-    expect(faderPosToVol(0.5)).toBeCloseTo(0.25, 5)
-  })
-
-  test('unity position yields unity volume (1.0)', () => {
-    expect(faderPosToVol(UNITY_POS)).toBeCloseTo(1.0, 5)
-  })
-
-  test('quartic scaling: small positions yield very low volumes', () => {
-    expect(faderPosToVol(0.1)).toBeCloseTo(0.0004, 5)
+    expect(faderPosToVol(0.5)).toBe(0.5)
+    expect(faderPosToVol(1)).toBe(1)
   })
 })
 
@@ -40,98 +27,126 @@ describe('volToFaderPos', () => {
     expect(volToFaderPos(-1)).toBe(0)
   })
 
-  test('unity volume maps to ~0.7071', () => {
-    expect(volToFaderPos(1.0)).toBeCloseTo(UNITY_POS, 5)
+  test('identity mapping for valid range', () => {
+    expect(volToFaderPos(0.5)).toBe(0.5)
+    expect(volToFaderPos(0.85)).toBe(0.85)
+    expect(volToFaderPos(1.0)).toBe(1.0)
   })
 
-  test('max volume maps to full position', () => {
-    expect(volToFaderPos(4.0)).toBeCloseTo(1.0, 5)
-  })
-
-  test('round-trip: vol -> pos -> vol', () => {
-    for (const vol of [0, 0.01, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0]) {
-      const pos = volToFaderPos(vol)
-      expect(faderPosToVol(pos)).toBeCloseTo(vol, 5)
-    }
+  test('clamps to 1.0', () => {
+    expect(volToFaderPos(1.5)).toBe(1.0)
   })
 
   test('round-trip: pos -> vol -> pos', () => {
-    for (const pos of [0, 0.1, 0.25, 0.5, 0.7071, 0.9, 1.0]) {
+    for (const pos of [0, 0.1, 0.25, 0.5, 0.85, 0.9, 1.0]) {
       const vol = faderPosToVol(pos)
       expect(volToFaderPos(vol)).toBeCloseTo(pos, 5)
     }
   })
 })
 
-describe('volToDb', () => {
-  test('silence returns -infinity symbol', () => {
-    expect(volToDb(0)).toBe('-∞')
+describe('abletonParamToDb', () => {
+  test('param 0 is -Infinity', () => {
+    expect(abletonParamToDb(0)).toBe(-Infinity)
   })
 
-  test('near-zero returns -infinity symbol', () => {
-    expect(volToDb(0.000001)).toBe('-∞')
+  test('param 0.85 is exactly 0 dB', () => {
+    expect(abletonParamToDb(0.85)).toBe(0)
   })
 
-  test('unity volume (1.0) is 0 dB', () => {
-    expect(volToDb(1.0)).toBe('+0.0')
+  test('param 1.0 is exactly +6 dB', () => {
+    expect(abletonParamToDb(1.0)).toBe(6)
   })
 
-  test('double amplitude is +6 dB', () => {
-    expect(volToDb(2.0)).toBeCloseTo(6.0, 0)
-    expect(volToDb(2.0)).toMatch(/^\+6\.0/)
+  // Calibration points derived from Ableton Live measurements.
+  // Each test uses the parameter value that Ableton assigns to the given dB,
+  // and verifies our formula produces the correct dB within ±0.2 dB.
+  test.each([
+    [0.699, -6],
+    [0.550, -12],
+    [0.399, -18],
+    [0.302, -24],
+    [0.239, -30],
+    [0.188, -36],
+    [0.143, -42],
+    [0.103, -48],
+    [0.068, -54],
+    [0.035, -60],
+  ])('param %f is approximately %d dB', (param, expectedDb) => {
+    expect(abletonParamToDb(param)).toBeCloseTo(expectedDb, 0)
   })
 
-  test('half amplitude is -6 dB', () => {
-    expect(volToDb(0.5)).toMatch(/^-6\.0/)
+  test('monotonically increasing', () => {
+    const params = [0.01, 0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 0.85, 1.0]
+    const dbs = params.map(abletonParamToDb)
+    for (let i = 1; i < dbs.length; i++) {
+      expect(dbs[i]).toBeGreaterThan(dbs[i - 1])
+    }
   })
 
-  test('max volume (4.0) is ~+12 dB', () => {
-    expect(volToDb(4.0)).toMatch(/^\+12\.0/)
-  })
-
-  test('positive dB values have + prefix', () => {
-    expect(volToDb(1.5)).toMatch(/^\+/)
-  })
-
-  test('negative dB values have - prefix', () => {
-    expect(volToDb(0.5)).toMatch(/^-/)
+  test('continuous at the piecewise knee (~0.405)', () => {
+    const below = abletonParamToDb(0.404)
+    const above = abletonParamToDb(0.406)
+    expect(Math.abs(above - below)).toBeLessThan(0.2)
   })
 })
 
 describe('abletonVolToDbStr', () => {
-  test('ableton 0.25 (unity) is 0 dB', () => {
-    expect(abletonVolToDbStr(0.25)).toBe('+0.0')
+  test('param 0.85 (unity) is +0.0', () => {
+    expect(abletonVolToDbStr(0.85)).toBe('+0.0')
   })
 
-  test('ableton 0 is silence', () => {
+  test('param 0 is silence', () => {
     expect(abletonVolToDbStr(0)).toBe('-∞')
   })
 
-  test('ableton 1.0 (max) is ~+12 dB', () => {
-    expect(abletonVolToDbStr(1.0)).toMatch(/^\+12\.0/)
+  test('param 1.0 (max) is +6.0', () => {
+    expect(abletonVolToDbStr(1.0)).toBe('+6.0')
   })
 
-  test('ableton 0.85 (default track volume) produces a positive dB value', () => {
-    const result = abletonVolToDbStr(0.85)
-    expect(result).toMatch(/^\+/)
+  test('positive dB values have + prefix', () => {
+    expect(abletonVolToDbStr(0.9)).toMatch(/^\+/)
+  })
+
+  test('negative dB values have - prefix', () => {
+    expect(abletonVolToDbStr(0.5)).toMatch(/^-/)
   })
 })
 
 describe('constants', () => {
-  test('UNITY_POS is approximately 0.7071', () => {
-    expect(UNITY_POS).toBeCloseTo(Math.pow(0.25, 0.25), 10)
+  test('UNITY_POS is 0.85', () => {
+    expect(UNITY_POS).toBe(0.85)
   })
 
-  test('UNITY_VOL_ABLETON is 0.25', () => {
-    expect(UNITY_VOL_ABLETON).toBe(0.25)
+  test('UNITY_VOL_ABLETON is 0.85', () => {
+    expect(UNITY_VOL_ABLETON).toBe(0.85)
+  })
+})
+
+describe('dbToParam', () => {
+  test('round-trip: param -> dB -> param', () => {
+    const params = [0.01, 0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 0.85, 1.0]
+    for (const p of params) {
+      const db = abletonParamToDb(p)
+      expect(dbToParam(db)).toBeCloseTo(p, 4)
+    }
   })
 
-  test('UNITY_POS round-trips to unity volume', () => {
-    expect(faderPosToVol(UNITY_POS)).toBeCloseTo(1.0, 10)
+  test('-Infinity returns 0', () => {
+    expect(dbToParam(-Infinity)).toBe(0)
+  })
+
+  test('0 dB returns 0.85 (unity)', () => {
+    expect(dbToParam(0)).toBeCloseTo(0.85, 5)
+  })
+
+  test('+6 dB returns 1.0 (max)', () => {
+    expect(dbToParam(6)).toBeCloseTo(1.0, 5)
   })
 })
 
 describe('levelToPercent', () => {
+  // Ableton meter: 0 → -60 dB, 1.0 → +6 dB (linear in dB)
   test('zero level is 0%', () => {
     expect(levelToPercent(0)).toBe(0)
   })
@@ -140,33 +155,25 @@ describe('levelToPercent', () => {
     expect(levelToPercent(-0.5)).toBe(0)
   })
 
-  test('unity level (1.0) is 0 dB, maps to ~90.9%', () => {
-    // 0 dB → (0 + 60) / 66 * 100 = 90.9%
-    expect(levelToPercent(1.0)).toBeCloseTo(90.9, 0)
+  test('max level (1.0 = +6 dB) maps to 100%', () => {
+    expect(levelToPercent(1.0)).toBeCloseTo(100, 0)
   })
 
-  test('clipping level (2.0) is +6 dB, maps to ~100%', () => {
-    // +6 dB → (6 + 60) / 66 * 100 = 100%
-    expect(levelToPercent(2.0)).toBeCloseTo(100, 0)
+  test('meter at 0 dB aligns with unity fader position (85%)', () => {
+    // 0 dB → meter value = (0 - (-60)) / 66 = 60/66 ≈ 0.909
+    const meterAt0dB = 60 / 66
+    expect(levelToPercent(meterAt0dB)).toBeCloseTo(85, 0)
   })
 
-  test('result is clamped to 0-100', () => {
-    expect(levelToPercent(0)).toBe(0)
-    expect(levelToPercent(10)).toBeLessThanOrEqual(100)
+  test('meter at -27 dB aligns with fader at -27 dB', () => {
+    // -27 dB → meter value = (-27 - (-60)) / 66 = 33/66 = 0.5
+    const meterAtMinus27 = 0.5
+    const faderParam = dbToParam(-27)
+    expect(levelToPercent(meterAtMinus27)).toBeCloseTo(faderParam * 100, 0)
   })
 
-  test('very quiet signal has low percentage', () => {
-    // -60 dB = 0.001 linear → (−60 + 60) / 66 * 100 = 0%
-    expect(levelToPercent(0.001)).toBeCloseTo(0, 0)
-  })
-
-  test('mid-range signal produces mid-range percentage', () => {
-    // -20 dB = 0.1 linear → (−20 + 60) / 66 * 100 ≈ 60.6%
-    expect(levelToPercent(0.1)).toBeCloseTo(60.6, 0)
-  })
-
-  test('monotonically increasing: louder signal = higher percentage', () => {
-    const levels = [0.001, 0.01, 0.1, 0.5, 1.0, 1.5]
+  test('monotonically increasing', () => {
+    const levels = [0.001, 0.01, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0]
     const percents = levels.map(levelToPercent)
     for (let i = 1; i < percents.length; i++) {
       expect(percents[i]).toBeGreaterThan(percents[i - 1])

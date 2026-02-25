@@ -16,5 +16,8 @@
     "tailwindcss": "^4",
     "vite": "^6",
     "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "@use-gesture/vanilla": "^10.3.1"
   }
 }

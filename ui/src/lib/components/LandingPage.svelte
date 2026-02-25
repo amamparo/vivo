@@ -2,6 +2,7 @@
   import { getMixes, selectMix } from '$lib/stores/mixer.svelte.js'
 
   let mixes = $derived(getMixes())
+  let showColors = $derived(new Set(mixes.map(m => m.color)).size > 1)
 </script>
 
 <div class="min-h-screen max-w-lg mx-auto p-4 flex flex-col gap-4">
@@ -15,7 +16,9 @@
           onclick={() => selectMix(mix.index)}
           class="flex items-center gap-3 p-4 rounded-lg bg-neutral-900 active:bg-neutral-800 transition-colors text-left"
         >
-          <div class="w-4 h-4 rounded-full shrink-0" style="background-color: {mix.color}"></div>
+          {#if showColors}
+            <div class="w-4 h-4 rounded-full shrink-0" style="background-color: {mix.color}"></div>
+          {/if}
           <span class="text-lg text-neutral-200 font-medium">{mix.name}</span>
           <span class="ml-auto text-sm text-neutral-500">{mix.track_count} ch</span>
         </button>
