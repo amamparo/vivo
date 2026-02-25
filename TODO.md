@@ -10,7 +10,8 @@ Write a python web-server that serves a web-based mixer for Ableton Live.
 * Controls for each track:
   * level fader
   * mute
-  * solo
+  * solo (see `note on solo` below)
+    * the required project setup is such that each band member's mix is comprised of tracks nested together in a group. as such, just utilizing the built-in solo buttons will not work, because soloing a track in a band member's mix would solo that track across the entire ableton project. instead, we need to be a little clever. when soloing a track in a monitor mix, we should achieve this by muting all other tracks within the same monitor group. If I solo a second track, then just unmute that track (leaving two tracks un-muted in the group). If I have one track solo'ed, and then I un-solo that track, then all tracks should become un-muted. I think this complex faux-solo state should be tracked within the server's python code.
 * the UI/look and feel should be identical to the more-me interface in this repo: https://github.com/amamparo/reaper-web-controllers
 
 ## Ableton interfacing
