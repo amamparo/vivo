@@ -15,7 +15,7 @@
 </script>
 
 {#if master}
-  <div class="flex flex-col gap-1 px-3 py-2 rounded-lg bg-neutral-800">
+  <div class="flex flex-col gap-1 px-3 py-2 rounded-lg bg-[#333]">
     <!-- Row 1: Master label (min-h matches ToggleButton height in ChannelStrip) -->
     <div class="flex items-center min-h-[36px]">
       <span class="text-xs font-bold text-neutral-200">Master</span>

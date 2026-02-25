@@ -1,10 +1,35 @@
-import { onMessage, send } from './connection.svelte.js'
+import { onMessage, onConnect, send } from './connection.svelte.js'
 
 let mixes = $state([])
 let selectedGroupIndex = $state(-1)
 let master = $state(null)
 let tracks = $state([])
 let meters = $state({})
+
+// Restore mix selection from URL hash on connect
+function readHash() {
+  const match = location.hash.match(/^#mix\/(\d+)$/)
+  return match ? parseInt(match[1], 10) : -1
+}
+
+onConnect(() => {
+  const idx = readHash()
+  if (idx >= 0) {
+    selectedGroupIndex = idx
+    send({ type: 'select_mix', group_index: idx })
+  }
+})
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('hashchange', () => {
+    const idx = readHash()
+    if (idx < 0 && selectedGroupIndex >= 0) {
+      selectedGroupIndex = -1
+      master = null
+      tracks = []
+    }
+  })
+}
 
 onMessage((msg) => {
   if (msg.type === 'mixes') {
@@ -14,6 +39,7 @@ onMessage((msg) => {
       selectedGroupIndex = -1
       master = null
       tracks = []
+      location.hash = ''
     } else {
       master = msg.master
       tracks = msg.tracks
@@ -45,6 +71,7 @@ export function getMeter(trackIndex) {
 
 export function selectMix(groupIndex) {
   selectedGroupIndex = groupIndex
+  location.hash = `mix/${groupIndex}`
   send({ type: 'select_mix', group_index: groupIndex })
 }
 
@@ -52,6 +79,7 @@ export function goBack() {
   selectedGroupIndex = -1
   master = null
   tracks = []
+  history.back()
 }
 
 export function setVolume(trackIndex, volume) {

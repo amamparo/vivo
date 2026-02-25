@@ -24,7 +24,7 @@
 </script>
 
 <div
-  class="flex flex-col gap-1 px-3 py-2 rounded-lg bg-neutral-900 transition-opacity"
+  class="flex flex-col gap-1 px-3 py-2 rounded-lg bg-[#242424] transition-opacity"
   style="opacity: {dimmed ? 0.4 : 1};"
 >
   <!-- Row 1: name + S/M buttons -->

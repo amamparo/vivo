@@ -1,11 +1,19 @@
 let socket = $state(null)
 let connected = $state(false)
 let messageHandlers = []
+let connectHandlers = []
 
 export function onMessage(handler) {
   messageHandlers.push(handler)
   return () => {
     messageHandlers = messageHandlers.filter(h => h !== handler)
+  }
+}
+
+export function onConnect(handler) {
+  connectHandlers.push(handler)
+  return () => {
+    connectHandlers = connectHandlers.filter(h => h !== handler)
   }
 }
 
@@ -17,6 +25,9 @@ export function connect() {
   ws.onopen = () => {
     socket = ws
     connected = true
+    for (const handler of connectHandlers) {
+      handler()
+    }
   }
 
   ws.onmessage = (event) => {

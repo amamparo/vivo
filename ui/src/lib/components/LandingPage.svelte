@@ -14,7 +14,7 @@
         <button
           type="button"
           onclick={() => selectMix(mix.index)}
-          class="flex items-center gap-3 p-4 rounded-lg bg-neutral-900 active:bg-neutral-800 transition-colors text-left"
+          class="flex items-center gap-3 p-4 rounded-lg bg-[#242424] active:bg-neutral-700 transition-colors text-left"
         >
           {#if showColors}
             <div class="w-4 h-4 rounded-full shrink-0" style="background-color: {mix.color}"></div>
