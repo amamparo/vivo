@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: #0a0a0a;
+  color: #a9abab;
+  margin: 0;
+  user-select: none;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
