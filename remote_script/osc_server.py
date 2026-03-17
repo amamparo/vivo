@@ -24,7 +24,7 @@ class OSCServer:
     def __init__(self):
         self._remote_addr = ('127.0.0.1', OSC_RESPONSE_PORT)
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._socket.setblocking(0)
+        self._socket.setblocking(False)
         self._socket.bind(('0.0.0.0', OSC_LISTEN_PORT))
         self._callbacks = {}
 

@@ -1,0 +1,9 @@
+{
+  "pythonVersion": "3.11",
+  "extraPaths": [
+    "stubs/AbletonLive12_MIDIRemoteScripts",
+    "stubs/AbletonLive-API-Stub"
+  ],
+  "include": ["remote_script"],
+  "exclude": ["remote_script/pythonosc"]
+}

@@ -20,20 +20,23 @@ class VivOSC(ControlSurface):
     def __init__(self, c_instance):
         ControlSurface.__init__(self, c_instance)
 
-        self._osc = None
         self._track_listeners = {}
         self._mixer_listeners = {}
+        self._log_handler = None
+
+        self._init_logging()
 
         try:
-            self._init_logging()
             self._osc = OSCServer()
-            self._init_osc_handlers()
-            self.schedule_message(0, self._tick)
-            self.show_message("VivOSC: Listening on port %d" % OSC_LISTEN_PORT)
-            logger.info("Started VivOSC on port %d" % OSC_LISTEN_PORT)
         except OSError as e:
             self.show_message("VivOSC: Couldn't bind to port %d (%s)" % (OSC_LISTEN_PORT, e))
             logger.error("Couldn't bind to port %d (%s)" % (OSC_LISTEN_PORT, e))
+            return
+
+        self._init_osc_handlers()
+        self.schedule_message(0, self._tick)
+        self.show_message("VivOSC: Listening on port %d" % OSC_LISTEN_PORT)
+        logger.info("Started VivOSC on port %d" % OSC_LISTEN_PORT)
 
     # ── OSC handlers ──────────────────────────────────────────────────
 
@@ -56,13 +59,13 @@ class VivOSC(ControlSurface):
     # ── Song ──────────────────────────────────────────────────────────
 
     def _on_get_num_tracks(self, params):
-        return (len(self.song().tracks),)
+        return (len(self.song.tracks),)
 
     def _on_get_track_data(self, params):
         track_index_min, track_index_max, *properties = params
         track_index_min = int(track_index_min)
         track_index_max = int(track_index_max)
-        tracks = self.song().tracks
+        tracks = self.song.tracks
         if track_index_max == -1:
             track_index_max = len(tracks)
         rv = []
@@ -82,19 +85,19 @@ class VivOSC(ControlSurface):
     def _make_track_getter(self, prop):
         def callback(params):
             track_index = int(params[0])
-            track = self.song().tracks[track_index]
+            track = self.song.tracks[track_index]
             value = getattr(track, prop)
             return (track_index, value)
         return callback
 
     def _on_set_mute(self, params):
         track_index = int(params[0])
-        self.song().tracks[track_index].mute = params[1]
+        self.song.tracks[track_index].mute = params[1]
 
     def _make_track_listen_start(self, prop):
         def callback(params):
             track_index = int(params[0])
-            track = self.song().tracks[track_index]
+            track = self.song.tracks[track_index]
             key = (prop, track_index)
 
             if key in self._track_listeners:
@@ -129,15 +132,15 @@ class VivOSC(ControlSurface):
 
     def _on_get_volume(self, params):
         track_index = int(params[0])
-        return (track_index, self.song().tracks[track_index].mixer_device.volume.value)
+        return (track_index, self.song.tracks[track_index].mixer_device.volume.value)
 
     def _on_set_volume(self, params):
         track_index = int(params[0])
-        self.song().tracks[track_index].mixer_device.volume.value = params[1]
+        self.song.tracks[track_index].mixer_device.volume.value = params[1]
 
     def _on_start_listen_volume(self, params):
         track_index = int(params[0])
-        parameter = self.song().tracks[track_index].mixer_device.volume
+        parameter = self.song.tracks[track_index].mixer_device.volume
         key = ("volume", track_index)
 
         if key in self._mixer_listeners:
@@ -174,15 +177,18 @@ class VivOSC(ControlSurface):
             self._remove_track_listener(key)
         for key in list(self._mixer_listeners):
             self._remove_mixer_listener(key)
-        if self._osc:
+        if hasattr(self, "_osc"):
             self._osc.shutdown()
         if self._log_handler:
             logger.removeHandler(self._log_handler)
         super().disconnect()
 
     def _init_logging(self):
-        module_path = os.path.dirname(os.path.realpath(__file__))
-        log_dir = os.path.join(module_path, "logs")
+        try:
+            from ._config import LOG_DIR
+            log_dir = LOG_DIR
+        except ImportError:
+            log_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "logs")
         if not os.path.exists(log_dir):
             os.mkdir(log_dir, 0o755)
         self._log_handler = logging.FileHandler(os.path.join(log_dir, "vivosc.log"))

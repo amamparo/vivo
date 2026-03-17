@@ -12,7 +12,7 @@ just dev            # Server + UI with file-watching
 just dev-server     # FastAPI with auto-reload only
 just dev-ui         # Vite dev server with HMR only
 just test           # Run pytest + vitest suites
-just check          # Run svelte-check
+just check          # Run svelte-check + pyright on remote_script
 just setup          # Install VivOSC Remote Script into Ableton
 ```
 
@@ -22,7 +22,12 @@ Run a single UI test: `cd ui && npx vitest run -t "test name"`
 
 Use `just` commands rather than bare `poetry run` — the justfile has a pyenv workaround that sets `VIRTUAL_ENV` and `PATH` explicitly.
 
-Runtime logs go to `logs/server.log` and `logs/ui.log` (gitignored). Read these to diagnose runtime errors.
+All runtime logs go to `logs/` (gitignored):
+- `logs/server.log` — FastAPI/uvicorn output
+- `logs/ui.log` — Vite dev server output
+- `logs/vivosc.log` — Ableton remote script output (written by the VivOSC ControlSurface running inside Ableton)
+
+When diagnosing issues, check `logs/vivosc.log` for remote script errors — these surface Ableton-side failures that the server can't see.
 
 ## Architecture
 

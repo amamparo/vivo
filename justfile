@@ -43,3 +43,4 @@ test:
 
 check:
     cd ui && npm run check
+    npx pyright
