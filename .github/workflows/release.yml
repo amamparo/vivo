@@ -84,13 +84,8 @@ jobs:
           releaseBody: |
             ## Install
 
-            ```sh
-            # Download and install (Apple Silicon)
-            xattr -cr ~/Downloads/Vivo*.dmg
-            ```
-
             1. Download the `.dmg` for your Mac below
-            2. Run the command above to clear the macOS quarantine flag
+            2. Clear the macOS quarantine flag: `xattr -c ~/Downloads/Vivo*.dmg`
             3. Open the DMG and drag Vivo to Applications
 
             See the [commit log](https://github.com/${{ github.repository }}/compare/${{ needs.tag.outputs.prev_tag }}...${{ needs.tag.outputs.new_tag }}) for changes.
