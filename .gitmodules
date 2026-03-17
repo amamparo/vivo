@@ -1,0 +1,6 @@
+[submodule "stubs/AbletonLive-API-Stub"]
+	path = stubs/AbletonLive-API-Stub
+	url = https://github.com/cylab/AbletonLive-API-Stub.git
+[submodule "stubs/AbletonLive12_MIDIRemoteScripts"]
+	path = stubs/AbletonLive12_MIDIRemoteScripts
+	url = https://github.com/gluon/AbletonLive12_MIDIRemoteScripts.git

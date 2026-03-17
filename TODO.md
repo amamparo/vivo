@@ -34,7 +34,7 @@ Key details:
 
 The Remote Script imports `ableton.v2.control_surface` and `Live`, which only exist inside Ableton's Python runtime. Add type stubs as git submodules so editors can resolve these:
 
-- Decompiled framework classes: https://github.com/gluon/AbletonLive11_MIDIRemoteScripts (`ableton/`, `_Framework/`)
+- Decompiled framework classes: https://github.com/gluon/AbletonLive12_MIDIRemoteScripts (`ableton/`, `_Framework/`)
 - Live API stubs: https://github.com/cylab/AbletonLive-API-Stub (`Live/`)
 
 Point Pylance at them via `.vscode/settings.json` `python.analysis.extraPaths`. Wire `git submodule update --init` into `just install` so they're fetched automatically.

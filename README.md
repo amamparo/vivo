@@ -7,7 +7,7 @@ Web-based monitor mixer for Ableton Live. Each band member controls their own mi
 In Ableton, each monitor mix is a **group track** — the group name is the mix name, the group fader is the master output, and the child tracks are the mixer channels. Vivo discovers these groups over OSC and presents them as selectable mixes via a mobile-friendly web UI.
 
 ```
-Svelte UI ↔ WebSocket ↔ FastAPI ↔ OSC ↔ Ableton Live (AbletonOSC)
+Svelte UI ↔ WebSocket ↔ FastAPI ↔ OSC ↔ Ableton Live (VivOSC Remote Script)
 ```
 
 Solo is "faux-solo" — it mutes sibling tracks rather than using Ableton's native solo, so soloing in one mix doesn't affect others.
@@ -29,19 +29,19 @@ nvm install
 just install
 ```
 
-### 2. Install AbletonOSC Remote Script
+### 2. Install VivOSC Remote Script
 
 ```sh
 just setup
 ```
 
-This clones [AbletonOSC](https://github.com/ideoforms/AbletonOSC) and copies it into Ableton's MIDI Remote Scripts directory (`~/Music/Ableton/User Library/Remote Scripts/`).
+This copies `remote_script/` into Ableton's MIDI Remote Scripts directory (`~/Music/Ableton/User Library/Remote Scripts/VivOSC`).
 
-### 3. Enable AbletonOSC in Ableton Live
+### 3. Enable VivOSC in Ableton Live
 
 1. Open Ableton Live
 2. Go to **Preferences > Link, Tempo & MIDI**
-3. Under **Control Surface**, select **AbletonOSC**
+3. Under **Control Surface**, select **VivOSC**
 4. No MIDI input/output ports need to be selected
 
 ### 4. Build and run
@@ -66,6 +66,7 @@ just check      # Run svelte-check
 ## Project Structure
 
 ```
+remote_script/      Ableton Remote Script (VivOSC, installed via just setup)
 server/             Python backend (FastAPI + python-osc)
   app.py            App factory, WebSocket endpoint
   main.py           Entry point, DI wiring

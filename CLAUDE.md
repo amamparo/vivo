@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-just install        # Create .venv, poetry install, npm install
+just install        # Init submodules, create .venv, poetry install, npm install
 just build          # Build Svelte UI to ui/dist
 just run            # Serve on :8000 (requires built UI)
 just dev            # Server + UI with file-watching
@@ -13,7 +13,7 @@ just dev-server     # FastAPI with auto-reload only
 just dev-ui         # Vite dev server with HMR only
 just test           # Run pytest + vitest suites
 just check          # Run svelte-check
-just setup          # Install AbletonOSC Remote Script into Ableton
+just setup          # Install VivOSC Remote Script into Ableton
 ```
 
 Run a single Python test: `just test -- tests/test_solo_manager.py::TestSoloManager::test_soloing_a_track_mutes_all_others`

@@ -5,6 +5,7 @@ poetry_cmd := "VIRTUAL_ENV=" + justfile_directory() + "/.venv PATH=" + justfile_
 _ts := "perl -pe 'use POSIX \"strftime\"; BEGIN { $| = 1 } $_ = strftime(\"%Y-%m-%d %H:%M:%S \", localtime) . $_'"
 
 install:
+    git submodule update --init
     python3.13 -m venv .venv
     {{poetry_cmd}} install
     cd ui && npm install
@@ -34,7 +35,7 @@ run:
     {{poetry_cmd}} run uvicorn server.main:app --host 0.0.0.0 --port 8000 2>&1 | {{_ts}} | tee logs/server.log
 
 setup:
-    {{poetry_cmd}} run python setup_abletonosc.py
+    {{poetry_cmd}} run python setup_remote_script.py
 
 test:
     {{poetry_cmd}} run pytest
