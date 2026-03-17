@@ -1,0 +1,33 @@
+name: Setup
+description: Install all dependencies (Node, Python, Rust, UI, server)
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+
+    - name: Install Python
+      uses: actions/setup-python@v5
+      with:
+        python-version-file: .python-version
+
+    - name: Install Rust
+      uses: dtolnay/rust-action/setup@v1
+
+    - name: Install Python dependencies
+      shell: bash
+      run: |
+        python -m venv .venv
+        .venv/bin/pip install poetry
+        VIRTUAL_ENV=$(pwd)/.venv PATH=$(pwd)/.venv/bin:$PATH poetry install
+
+    - name: Install UI dependencies
+      shell: bash
+      run: cd ui && npm ci

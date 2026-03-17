@@ -1,0 +1,142 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. v1.2.3)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/check
+
+  tag:
+    needs: check
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
+      new_tag: ${{ steps.version.outputs.new_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get current version from tag
+        id: current
+        run: |
+          CURRENT=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "version=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "Current version: $CURRENT"
+
+      - name: Determine new version
+        id: version
+        run: |
+          CURRENT="${{ steps.current.outputs.version }}"
+          CURRENT_BARE="${CURRENT#v}"
+
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            NEW_TAG="${{ github.event.inputs.version }}"
+            NEW_BARE="${NEW_TAG#v}"
+
+            if ! echo "$NEW_BARE" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::Version must be in vX.Y.Z semver format, got: $NEW_TAG"
+              exit 1
+            fi
+
+            if [ "$(printf '%s\n' "$CURRENT_BARE" "$NEW_BARE" | sort -V | tail -1)" = "$CURRENT_BARE" ] && [ "$CURRENT_BARE" != "0.0.0" ]; then
+              echo "::error::Version $NEW_TAG is not greater than current $CURRENT"
+              exit 1
+            fi
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_BARE"
+            MINOR=$((MINOR + 1))
+            NEW_BARE="${MAJOR}.${MINOR}.0"
+            NEW_TAG="v${NEW_BARE}"
+          fi
+
+          echo "new_version=$NEW_BARE" >> "$GITHUB_OUTPUT"
+          echo "new_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+          echo "Releasing: $NEW_TAG"
+
+      - name: Update version in project files
+        run: |
+          VERSION="${{ steps.version.outputs.new_version }}"
+          jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+          sed -i "s/^__version__ = .*/__version__ = \"$VERSION\"/" remote_script/__init__.py
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "No version changes" || git commit -m "release: v${{ steps.version.outputs.new_version }}"
+          git push
+
+      - name: Create tag
+        run: |
+          git tag "${{ steps.version.outputs.new_tag }}"
+          git push origin "${{ steps.version.outputs.new_tag }}"
+
+  build:
+    needs: tag
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tag.outputs.new_tag }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-action/setup@v1
+
+      - name: Add Rust targets
+        run: |
+          rustup target add aarch64-apple-darwin
+          rustup target add x86_64-apple-darwin
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install UI dependencies
+        run: cd ui && npm ci
+
+      - name: Build UI
+        run: cd ui && npm run build
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: .
+          tauriScript: npx tauri
+          tagName: ${{ needs.tag.outputs.new_tag }}
+          releaseName: "Vivo ${{ needs.tag.outputs.new_tag }}"
+          releaseBody: "See the [commit log](https://github.com/${{ github.repository }}/commits/${{ needs.tag.outputs.new_tag }}) for changes."
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

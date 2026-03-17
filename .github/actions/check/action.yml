@@ -1,0 +1,29 @@
+name: Check
+description: Run all lints, type checks, and tests
+
+runs:
+  using: composite
+  steps:
+    - name: Svelte check
+      shell: bash
+      run: cd ui && npm run check
+
+    - name: Pyright
+      shell: bash
+      run: npx pyright
+
+    - name: Cargo check
+      shell: bash
+      run: cd src-tauri && cargo check
+
+    - name: Python tests
+      shell: bash
+      run: VIRTUAL_ENV=$(pwd)/.venv PATH=$(pwd)/.venv/bin:$PATH poetry run pytest
+
+    - name: UI tests
+      shell: bash
+      run: cd ui && npm test
+
+    - name: Build UI
+      shell: bash
+      run: cd ui && npm run build
