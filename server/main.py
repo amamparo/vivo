@@ -9,7 +9,7 @@ from server.bridge import AbletonBridge, AbletonOSCBridge
 from server.models import AbletonState
 from server.solo_manager import SoloManager
 
-PID_FILE = Path(__file__).resolve().parent.parent / "logs" / "vivo.pid"
+PID_FILE = Path(__file__).resolve().parent.parent / "logs" / "live-ears.pid"
 
 
 def _write_pid():

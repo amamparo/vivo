@@ -45,7 +45,7 @@ fn local_ip() -> String {
 }
 
 fn project_dir() -> PathBuf {
-    std::env::var("VIVO_PROJECT_DIR")
+    std::env::var("LIVE_EARS_PROJECT_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
             let mut dir = std::env::current_exe()
@@ -76,14 +76,14 @@ fn install_remote_script(project: &std::path::Path) {
     let source = project.join("remote_script").join("__init__.py");
     let target_dir: PathBuf = dirs::home_dir()
         .unwrap_or_default()
-        .join("Music/Ableton/User Library/Remote Scripts/VivOSC");
+        .join("Music/Ableton/User Library/Remote Scripts/LiveEarsOSC");
     let target = target_dir.join("__init__.py");
 
     let source_version = read_version(&source).unwrap_or_default();
     let installed_version = read_version(&target);
 
     if installed_version.as_deref() == Some(&source_version) {
-        log::info!("VivOSC {} already up to date", source_version);
+        log::info!("LiveEarsOSC {} already up to date", source_version);
         return;
     }
 
@@ -104,13 +104,13 @@ fn install_remote_script(project: &std::path::Path) {
     }
 }
 
-fn kill_stale_vivo(project: &std::path::Path) {
-    let pid_file = project.join("logs/vivo.pid");
+fn kill_stale_server(project: &std::path::Path) {
+    let pid_file = project.join("logs/live-ears.pid");
     if let Ok(contents) = fs::read_to_string(&pid_file) {
         if let Ok(pid) = contents.trim().parse::<u32>() {
             let check = Command::new("kill").args(["-0", &pid.to_string()]).output();
             if check.map(|o| o.status.success()).unwrap_or(false) {
-                log::info!("Killing stale Vivo server (pid {})", pid);
+                log::info!("Killing stale Live Ears server (pid {})", pid);
                 let _ = Command::new("kill").arg(pid.to_string()).output();
                 std::thread::sleep(std::time::Duration::from_millis(500));
             }
@@ -120,7 +120,7 @@ fn kill_stale_vivo(project: &std::path::Path) {
 }
 
 fn start_sidecar(project: &std::path::Path, port: u16) -> Option<Child> {
-    kill_stale_vivo(project);
+    kill_stale_server(project);
 
     log::info!("Starting sidecar from: {}", project.display());
 
@@ -153,17 +153,17 @@ fn stop_sidecar(state: &Sidecar) {
 }
 
 fn register_mdns_hostname(ip: &str) -> Option<Child> {
-    // Use macOS dns-sd to register "vivo.local" as an A record via mDNS.
+    // Use macOS dns-sd to register "liveears.local" as an A record via mDNS.
     // dns-sd -P registers a proxy service with an explicit hostname + IP.
     // The process must stay alive for the registration to persist.
     let child = Command::new("dns-sd")
         .args([
             "-P",           // register proxy
-            "Vivo",         // service name
+            "Live Ears",         // service name
             "_http._tcp",   // service type
             "local",        // domain
             "80",           // port (unused for hostname resolution, overridden by URL)
-            "vivo.local.",  // hostname to register
+            "liveears.local.",  // hostname to register
             ip,             // IP address
         ])
         .stdout(std::process::Stdio::null())
@@ -172,7 +172,7 @@ fn register_mdns_hostname(ip: &str) -> Option<Child> {
         .map_err(|e| log::error!("dns-sd registration failed: {}", e))
         .ok()?;
 
-    log::info!("Registered mDNS hostname: vivo.local → {}", ip);
+    log::info!("Registered mDNS hostname: liveears.local → {}", ip);
     Some(child)
 }
 
@@ -216,7 +216,7 @@ fn connection_html(url: &str, qr_svg: &str) -> String {
 </style>
 </head>
 <body>
-  <h2>Connect to Vivo</h2>
+  <h2>Connect to Live Ears</h2>
   <p class="hint">Open this URL on your phone, or scan the QR code</p>
   <p class="url">{url}</p>
   <div class="qr">{qr_svg}</div>
@@ -233,13 +233,13 @@ pub fn run() {
     let project = project_dir();
     let port = find_open_port();
     let ip = local_ip();
-    let bonjour_url = format!("http://vivo.local:{}", port);
+    let bonjour_url = format!("http://liveears.local:{}", port);
     let fallback_url = format!("http://{}:{}", ip, port);
 
-    // Install/update VivOSC remote script
+    // Install/update LiveEarsOSC remote script
     install_remote_script(&project);
 
-    // Register vivo.local hostname via mDNS (dns-sd process stays alive)
+    // Register liveears.local hostname via mDNS (dns-sd process stays alive)
     let _dns_sd = register_mdns_hostname(&ip);
 
     // Pre-generate connection page HTML
@@ -254,9 +254,9 @@ pub fn run() {
         )
         .plugin(tauri_plugin_shell::init())
         .manage(Sidecar(Mutex::new(None)))
-        .register_uri_scheme_protocol("vivo", move |_ctx, req| {
+        .register_uri_scheme_protocol("liveears", move |_ctx, req| {
             let uri = req.uri().to_string();
-            log::info!("vivo:// request: {}", uri);
+            log::info!("liveears:// request: {}", uri);
             let (body, content_type) = if uri.contains("connect") {
                 (conn_html.as_bytes().to_vec(), "text/html")
             } else {
@@ -281,7 +281,7 @@ pub fn run() {
             let project_for_start = project.clone();
 
             // -- Build tray menu --
-            let header = MenuItemBuilder::with_id("header", format!("Vivo — {}", &bonjour_url))
+            let header = MenuItemBuilder::with_id("header", format!("Live Ears — {}", &bonjour_url))
                 .enabled(false)
                 .build(app)?;
             let connect = MenuItemBuilder::with_id("connect", "Show QR Code")
@@ -297,7 +297,7 @@ pub fn run() {
             let guide = MenuItemBuilder::with_id("guide", "Installation Guide")
                 .build(app)?;
             let sep3 = PredefinedMenuItem::separator(app)?;
-            let quit = MenuItemBuilder::with_id("quit", "Quit Vivo")
+            let quit = MenuItemBuilder::with_id("quit", "Quit Live Ears")
                 .build(app)?;
 
             let menu = MenuBuilder::new(app)
@@ -316,7 +316,7 @@ pub fn run() {
                 .icon_as_template(false)
                 .menu(&menu)
                 .show_menu_on_left_click(true)
-                .tooltip("Vivo")
+                .tooltip("Live Ears")
                 .on_menu_event(move |app, event| {
                     match event.id().as_ref() {
                         "connect" => {
@@ -327,9 +327,9 @@ pub fn run() {
                                 let _ = WebviewWindowBuilder::new(
                                     app,
                                     "connect",
-                                    tauri::WebviewUrl::External("vivo://connect".parse().unwrap()),
+                                    tauri::WebviewUrl::External("liveears://connect".parse().unwrap()),
                                 )
-                                .title("Vivo — Connect")
+                                .title("Live Ears — Connect")
                                 .inner_size(340.0, 440.0)
                                 .resizable(false)
                                 .minimizable(false)
@@ -362,9 +362,9 @@ pub fn run() {
                                 let _ = WebviewWindowBuilder::new(
                                     app,
                                     "guide",
-                                    tauri::WebviewUrl::External("vivo://guide".parse().unwrap()),
+                                    tauri::WebviewUrl::External("liveears://guide".parse().unwrap()),
                                 )
-                                .title("Vivo — Installation Guide")
+                                .title("Live Ears — Installation Guide")
                                 .inner_size(400.0, 320.0)
                                 .resizable(false)
                                 .minimizable(false)

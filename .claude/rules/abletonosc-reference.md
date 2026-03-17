@@ -1,10 +1,10 @@
 # AbletonOSC Protocol Reference
 
-This rule provides context for extending the Vivo Remote Script's OSC interface.
+This rule provides context for extending the Live Ears Remote Script's OSC interface.
 
 ## Background
 
-Vivo includes a custom Ableton Remote Script (in `remote_script/`) derived from
+Live Ears includes a custom Ableton Remote Script (in `remote_script/`) derived from
 [AbletonOSC](https://github.com/ideoforms/AbletonOSC) by ideoforms. It implements
 a small subset of OSC addresses. When adding new OSC commands, follow the conventions below.
 
@@ -34,7 +34,7 @@ The handler immediately sends the current value on registration.
 
 ## Currently implemented addresses
 
-See `server/bridge.py` for the addresses Vivo sends, and `remote_script/` for the
+See `server/bridge.py` for the addresses Live Ears sends, and `remote_script/` for the
 handlers. Currently: `song/get/num_tracks`, `song/get/track_data`, and track-level
 `volume`, `mute`, `output_meter_left`, `output_meter_right` (get/set/listen).
 

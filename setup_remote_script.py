@@ -1,4 +1,4 @@
-"""Install the VivOSC Remote Script into Ableton Live's Remote Scripts directory.
+"""Install the LiveEarsOSC Remote Script into Ableton Live's Remote Scripts directory.
 
 Dev builds stamp a random hash into __version__ so every `just setup` copies fresh.
 Release builds use the version from remote_script/__init__.py as-is.
@@ -12,7 +12,7 @@ from pathlib import Path
 ABLETON_REMOTE_SCRIPTS = Path.home() / "Music" / "Ableton" / "User Library" / "Remote Scripts"
 PROJECT_DIR = Path(__file__).resolve().parent
 SOURCE_DIR = PROJECT_DIR / "remote_script"
-TARGET_DIR = ABLETON_REMOTE_SCRIPTS / "VivOSC"
+TARGET_DIR = ABLETON_REMOTE_SCRIPTS / "LiveEarsOSC"
 
 IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", "pyrightconfig.json")
 
@@ -54,7 +54,7 @@ def install(dev: bool = True) -> None:
         new_version = read_version(source_init) or "unknown"
 
     if installed_version == new_version:
-        print(f"VivOSC {installed_version} already up to date — skipping install")
+        print(f"LiveEarsOSC {installed_version} already up to date — skipping install")
         return
 
     if TARGET_DIR.exists():
@@ -67,16 +67,16 @@ def install(dev: bool = True) -> None:
     (TARGET_DIR / "_config.py").write_text(f'LOG_DIR = {str(log_dir)!r}\n')
 
     if installed_version:
-        print(f"\nVivOSC updated: {installed_version} → {new_version}")
+        print(f"\nLiveEarsOSC updated: {installed_version} → {new_version}")
     else:
-        print(f"\nVivOSC {new_version} installed to: {TARGET_DIR}")
+        print(f"\nLiveEarsOSC {new_version} installed to: {TARGET_DIR}")
     print(f"Logs will write to: {log_dir}")
 
     if not installed_version:
         print("\nNext steps:")
         print("  1. Restart Ableton Live")
         print("  2. Go to Preferences > Link, Tempo & MIDI")
-        print('  3. Under Control Surface, select "VivOSC"')
+        print('  3. Under Control Surface, select "LiveEarsOSC"')
         print("  4. No input/output MIDI ports need to be selected")
 
 

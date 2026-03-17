@@ -80,13 +80,13 @@ jobs:
           projectPath: .
           tauriScript: npx tauri
           tagName: ${{ needs.tag.outputs.new_tag }}
-          releaseName: "Vivo ${{ needs.tag.outputs.new_tag }}"
+          releaseName: "Live Ears ${{ needs.tag.outputs.new_tag }}"
           releaseBody: |
             ## Install
 
             1. Download the `.dmg` for your Mac below
-            2. Clear the macOS quarantine flag: `xattr -c ~/Downloads/Vivo*.dmg`
-            3. Open the DMG and drag Vivo to Applications
+            2. Clear the macOS quarantine flag: `xattr -c ~/Downloads/Live Ears*.dmg`
+            3. Open the DMG and drag Live Ears to Applications
 
             See the [commit log](https://github.com/${{ github.repository }}/compare/${{ needs.tag.outputs.prev_tag }}...${{ needs.tag.outputs.new_tag }}) for changes.
           releaseDraft: false

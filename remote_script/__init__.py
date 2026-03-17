@@ -1,6 +1,6 @@
-__version__ = "0.1.0+a71e2e"
+__version__ = "0.1.0+7588b7"
 
-from .vivosc import VivOSC
+from .liveearsosc import LiveEarsOSC
 
 def create_instance(c_instance):
-    return VivOSC(c_instance)
+    return LiveEarsOSC(c_instance)

@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "vivo"
+name = "live-ears"
 version = "0.1.0"
-description = "Web-based mixer for Ableton Live"
+description = "Web-based monitor mixer for Ableton Live"
 authors = []
 readme = "README.md"
 packages = [{include = "server"}]

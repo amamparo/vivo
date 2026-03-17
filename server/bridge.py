@@ -9,7 +9,7 @@ from pythonosc.osc_message_builder import OscMessageBuilder
 
 from server.models import AbletonState, Track
 
-logger = logging.getLogger("vivo")
+logger = logging.getLogger("live-ears")
 
 ABLETON_OSC_PORT = 11000
 

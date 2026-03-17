@@ -1,7 +1,7 @@
 """
-VivOSC — minimal Ableton Remote Script for Vivo.
+LiveEarsOSC — minimal Ableton Remote Script for Live Ears.
 
-Exposes only the OSC addresses that Vivo uses: track metadata queries,
+Exposes only the OSC addresses that Live Ears uses: track metadata queries,
 volume/mute get/set, and listeners for volume/mute/meters.
 """
 
@@ -13,10 +13,10 @@ from .osc_server import OSCServer, OSC_LISTEN_PORT
 import logging
 import os
 
-logger = logging.getLogger("vivosc")
+logger = logging.getLogger("liveearsosc")
 
 
-class VivOSC(ControlSurface):
+class LiveEarsOSC(ControlSurface):
     def __init__(self, c_instance):
         ControlSurface.__init__(self, c_instance)
 
@@ -29,14 +29,14 @@ class VivOSC(ControlSurface):
         try:
             self._osc = OSCServer()
         except OSError as e:
-            self.show_message("VivOSC: Couldn't bind to port %d (%s)" % (OSC_LISTEN_PORT, e))
+            self.show_message("LiveEarsOSC: Couldn't bind to port %d (%s)" % (OSC_LISTEN_PORT, e))
             logger.error("Couldn't bind to port %d (%s)" % (OSC_LISTEN_PORT, e))
             return
 
         self._init_osc_handlers()
         self.schedule_message(0, self._tick)
-        self.show_message("VivOSC: Listening on port %d" % OSC_LISTEN_PORT)
-        logger.info("Started VivOSC on port %d" % OSC_LISTEN_PORT)
+        self.show_message("LiveEarsOSC: Listening on port %d" % OSC_LISTEN_PORT)
+        logger.info("Started LiveEarsOSC on port %d" % OSC_LISTEN_PORT)
 
     # ── OSC handlers ──────────────────────────────────────────────────
 
@@ -191,7 +191,7 @@ class VivOSC(ControlSurface):
             log_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "logs")
         if not os.path.exists(log_dir):
             os.mkdir(log_dir, 0o755)
-        self._log_handler = logging.FileHandler(os.path.join(log_dir, "vivosc.log"))
+        self._log_handler = logging.FileHandler(os.path.join(log_dir, "liveearsosc.log"))
         self._log_handler.setLevel(logging.INFO)
         self._log_handler.setFormatter(logging.Formatter("(%(asctime)s) [%(levelname)s] %(message)s"))
         logger.addHandler(self._log_handler)

@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from server.bridge import AbletonBridge
 from server.mixer_service import MixerService
 
-logger = logging.getLogger("vivo")
+logger = logging.getLogger("live-ears")
 
 UI_DIST = Path(__file__).resolve().parent.parent / "ui" / "dist"
 METER_INTERVAL = 0.05

@@ -51,7 +51,7 @@ dev-tauri:
     mkdir -p logs
     cd ui && npm run build
     cd ..
-    VIVO_PROJECT_DIR="{{justfile_directory()}}" cargo run --manifest-path src-tauri/Cargo.toml
+    LIVE_EARS_PROJECT_DIR="{{justfile_directory()}}" cargo run --manifest-path src-tauri/Cargo.toml
 
 build-app:
     cd ui && npm run build

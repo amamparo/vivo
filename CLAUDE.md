@@ -13,7 +13,7 @@ just dev-server     # FastAPI with auto-reload only
 just dev-ui         # Vite dev server with HMR only
 just test           # Run pytest + vitest suites
 just check          # Run svelte-check + pyright on remote_script
-just setup          # Install VivOSC Remote Script into Ableton
+just setup          # Install LiveEarsOSC Remote Script into Ableton
 ```
 
 Run a single Python test: `just test -- tests/test_solo_manager.py::TestSoloManager::test_soloing_a_track_mutes_all_others`
@@ -25,9 +25,9 @@ Use `just` commands rather than bare `poetry run` — the justfile has a pyenv w
 All runtime logs go to `logs/` (gitignored):
 - `logs/server.log` — FastAPI/uvicorn output
 - `logs/ui.log` — Vite dev server output
-- `logs/vivosc.log` — Ableton remote script output (written by the VivOSC ControlSurface running inside Ableton)
+- `logs/liveearsosc.log` — Ableton remote script output (written by the LiveEarsOSC ControlSurface running inside Ableton)
 
-When diagnosing issues, check `logs/vivosc.log` for remote script errors — these surface Ableton-side failures that the server can't see.
+When diagnosing issues, check `logs/liveearsosc.log` for remote script errors — these surface Ableton-side failures that the server can't see.
 
 ## Architecture
 

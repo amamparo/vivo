@@ -16,7 +16,7 @@ import traceback
 
 OSC_LISTEN_PORT = 11000
 
-logger = logging.getLogger("vivosc")
+logger = logging.getLogger("liveearsosc")
 
 
 class OSCServer:
