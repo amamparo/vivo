@@ -19,7 +19,7 @@ runs:
         python-version-file: .python-version
 
     - name: Install Rust
-      uses: dtolnay/rust-action/setup@v1
+      uses: dtolnay/rust-toolchain@stable
 
     - name: Install Python dependencies
       shell: bash
