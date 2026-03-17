@@ -1,60 +1,110 @@
-# TODO: Replace AbletonOSC with a Vivo-owned Remote Script
+# TODO: Package Vivo as a Tauri Desktop App
 
 ## Why
 
-AbletonOSC is a general-purpose OSC bridge exposing hundreds of Ableton API endpoints. Vivo uses 14 of them. The current setup clones the full repo at install time (`setup_abletonosc.py`), which is fragile and pulls in ~15 handler modules we don't need.
+Vivo currently runs as a dev-mode web stack (FastAPI + Vite). For a band to actually use it at a gig, someone has to open a terminal and run `just dev`. The goal: a single installable macOS app with a system tray icon that starts the server and shows its status — no terminal, no Python path wrangling.
 
-The goal: a single-file (or near-single-file) Remote Script checked into this repo that only implements the OSC addresses Vivo actually uses. No base classes, no handler framework — just a flat ControlSurface that wires up callbacks directly.
+## Architecture
 
-## What Vivo uses
+```
+┌─────────────────────────────────┐
+│  Tauri App (Rust)               │
+│  ┌───────────────┐              │
+│  │ System Tray   │              │
+│  │ - Server URL  │              │
+│  │ - Start/Stop  │              │
+│  │ - Quit        │              │
+│  └───────┬───────┘              │
+│          │ spawns                │
+│  ┌───────▼───────────────────┐  │
+│  │ FastAPI Sidecar           │  │
+│  │ (bundled Python + server) │  │
+│  └───────────────────────────┘  │
+└─────────────────────────────────┘
+         ▲ OSC (UDP 11000/11001)
+         │
+   Ableton Live (VivOSC Remote Script)
 
-The 14 OSC addresses sent by `server/bridge.py`:
+Band members connect via phone browser → http://<host>:8000
+```
 
-- **Song**: `get/num_tracks`, `get/track_data` (bulk query for name, color, is_foldable, is_grouped, group_track, mute)
-- **Track get/set**: `volume` (mixer_device property), `mute` (direct track property)
-- **Track listeners**: `start_listen`/`stop_listen` for `volume`, `mute`, `output_meter_left`, `output_meter_right`
+The Tauri app is **not** wrapping the UI in a webview. The Svelte UI is served by FastAPI to phones over the local network — same as today. The Tauri app is purely a host process: system tray icon, sidecar lifecycle management, and Remote Script installation.
 
 ## Plan
 
-### 1. Create `remote_script/`
+### 1. Tauri project scaffolding
 
-A new top-level directory containing a minimal Ableton Remote Script. Rather than porting AbletonOSC's class hierarchy (Handler base class → SongHandler/TrackHandler subclasses), flatten everything into the ControlSurface subclass itself. The only pieces needed from AbletonOSC are:
+Initialize Tauri inside the existing repo. Since we're not using a webview for the UI (the Svelte app is served to phones by FastAPI), the Tauri "frontend" is essentially unused — the app is tray-only with no window.
 
-- **`pythonosc/`** — copy as-is. Ableton's embedded Python has no pip, so this vendored OSC library must ship with the script.
-- **The non-blocking UDP server** — AbletonOSC rolled its own (`osc_server.py`) because pythonosc's built-in server beachballs in Ableton's single-threaded runtime. This is the one file worth keeping mostly intact.
-- **The ControlSurface** — a single class with `__init__` (bind OSC handlers, start tick loop), `tick` (poll socket), `disconnect` (remove listeners, close socket). All 14 OSC callbacks are methods or lambdas on this class. No inheritance hierarchy.
+- `npm create tauri-app` or `cargo tauri init` in a new `src-tauri/` directory
+- Configure `tauri.conf.json`:
+  - No default window (tray-only app)
+  - Bundle identifier: `com.vivo.mixer`
+  - macOS minimum version, app icon, etc.
+- Add system tray with menu: server URL (click to copy), Start/Stop, Quit
+- Tray icon reflects server state (running/stopped/error)
+
+### 2. Bundle FastAPI as a sidecar
+
+Tauri's [sidecar](https://tauri.app/develop/sidecar/) feature can spawn and manage external binaries. Package the Python server as a standalone executable:
+
+- Use PyInstaller or PyOxidizer to bundle `server/` + dependencies into a single binary
+- Register it as a Tauri sidecar in `tauri.conf.json`
+- The Rust side spawns the sidecar on launch, monitors its stdout/stderr, and kills it on quit
+- Embed the built Svelte UI (`ui/dist/`) inside the sidecar bundle so FastAPI serves it directly — no separate static file path needed at runtime
 
 Key details:
-- `volume` lives on `track.mixer_device`, not `track` directly — listeners use `add_value_listener`/`remove_value_listener` on the parameter object, not `add_volume_listener` on the track.
-- `mute` and meter properties are direct track properties — listeners use `add_<prop>_listener`/`remove_<prop>_listener` on the track.
-- Listener cleanup must track these two types separately to avoid errors on shutdown.
-- `track_data` must handle `Live.Track.Track` values (e.g. `group_track`) by converting them to track indices.
+- The sidecar binary must include `python-osc`, `fastapi`, `uvicorn`, and `injector`
+- Port selection: default to 8000, but detect conflicts and pick an open port
+- Sidecar stdout should include the bound port so the tray can display the URL
+- Graceful shutdown: Tauri sends a signal, sidecar cleans up OSC listeners before exiting
 
-### 2. Add Ableton API stubs for intellisense
+### 3. Auto-install Remote Script
 
-The Remote Script imports `ableton.v2.control_surface` and `Live`, which only exist inside Ableton's Python runtime. Add type stubs as git submodules so editors can resolve these:
+On every app startup, ensure the installed VivOSC Remote Script matches the version bundled with the app. This replaces the manual `just setup` step entirely.
 
-- Decompiled framework classes: https://github.com/gluon/AbletonLive12_MIDIRemoteScripts (`ableton/`, `_Framework/`)
-- Live API stubs: https://github.com/cylab/AbletonLive-API-Stub (`Live/`)
+- Add a `VERSION` constant to `remote_script/__init__.py` (e.g. `__version__ = "0.2.0+a1b2c3"`)
+- **Dev builds** (`just setup`): version includes a randomly generated hash suffix (e.g. `0.2.0-dev+f7a3b1`), regenerated on each build — so every `just setup` always copies, matching the "code is changing constantly" reality of development
+- **Release builds**: version is stable (e.g. `0.2.0`) — only triggers a copy when the app is actually updated
+- On startup, read the installed `__init__.py` version and compare to the bundled version
+- If versions differ (or VivOSC isn't installed at all), copy the bundled remote script
+- If the version matches, skip — no unnecessary disk writes
+- Log the outcome either way (installed, updated from X→Y, or already up to date)
 
-Point Pylance at them via `.vscode/settings.json` `python.analysis.extraPaths`. Wire `git submodule update --init` into `just install` so they're fetched automatically.
+This means: installing/updating the app automatically installs/updates the Remote Script. The user only needs to select VivOSC as a control surface once in Ableton preferences.
 
-### 3. Replace setup script
+For development, `just setup` always copies (due to the random hash) — no need to think about whether the installed version is stale.
 
-Replace `setup_abletonosc.py` with a script that copies `remote_script/` into Ableton's Remote Scripts directory (no git clone). Update `just setup`, README, and CLAUDE.md references.
+### 4. System tray implementation
 
-### 4. Clean up
+The tray menu is the entire "server-side UI":
 
-- Delete `AbletonOSC/` and its `.gitignore` entry
-- Delete `setup_abletonosc.py`
-- Update README setup instructions and architecture diagram
-- Run `just test` to verify nothing broke (server tests don't touch the Remote Script)
-- Manual test: `just setup`, select the new Control Surface in Ableton, `just dev`, verify tracks/volume/meters/mute/solo all work
+- **Status line**: "Serving on http://192.168.x.x:8000" (local network IP, not localhost)
+- **Copy URL**: copies the serve URL to clipboard (for sharing with band members)
+- **Start / Stop**: toggle the sidecar process
+- **Quit**: stop sidecar, exit app
 
-## Future: Tauri
+Nice-to-haves for later:
+- Show connected client count
+- Auto-start on login (launchd plist)
+- Notification when Ableton connection is lost
 
-This project will eventually be packaged as a native desktop app via Tauri. Relevant implications for this task:
+### 5. Build & distribution
 
-- The FastAPI server will become a sidecar process spawned by the Tauri app (or be replaced by a Rust backend using Tauri commands). The OSC protocol between server and Remote Script is the boundary between the two processes — changing how the UI is packaged doesn't affect the Remote Script. The protocol itself will grow as new features are added.
-- The Tauri app can automate Remote Script installation (copy files to the Remote Scripts dir on first launch / update), so `setup_remote_script.py` should stay a simple, standalone copy operation that's easy to replicate from Rust.
-- The Remote Script itself always runs inside Ableton regardless of how the UI is packaged.
+- `just build-app` — builds the Svelte UI, bundles the Python sidecar, then `cargo tauri build`
+- Output: `.dmg` installer for macOS
+- Signing/notarization can come later
+
+### 6. Development workflow
+
+Keep the current `just dev` workflow intact for development. The Tauri app is a packaging/distribution concern — day-to-day development still uses `just dev` with hot reload. Add:
+
+- `just dev-tauri` — runs the Tauri app in dev mode (tray + sidecar with auto-reload)
+- `just build-app` — full production build
+
+## Open questions
+
+- **PyInstaller vs PyOxidizer vs Nuitka** for bundling the Python server — need to evaluate which produces the smallest/most reliable macOS binary with FastAPI + uvicorn
+- **Code signing** — needed for macOS distribution outside the App Store. Requires an Apple Developer account ($99/year). Can defer this.
+- **Windows/Linux** — Tauri supports all three, but Ableton's Remote Script path differs per OS. Start macOS-only, generalize later.
+- **Auto-update** — Tauri has built-in updater support. Worth adding once there's a distribution channel.

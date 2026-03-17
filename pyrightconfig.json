@@ -5,5 +5,5 @@
     "stubs/AbletonLive-API-Stub"
   ],
   "include": ["remote_script"],
-  "exclude": ["remote_script/pythonosc"]
+  "exclude": ["remote_script/pythonosc", "**/node_modules", "**/__pycache__", "**/.*", ".venv"]
 }
