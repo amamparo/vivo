@@ -34,58 +34,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get current version from tag
-        id: current
-        run: |
-          CURRENT=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "version=$CURRENT" >> "$GITHUB_OUTPUT"
-          echo "Current version: $CURRENT"
-
-      - name: Determine new version
+      - name: Resolve version
         id: version
-        run: |
-          CURRENT="${{ steps.current.outputs.version }}"
-          CURRENT_BARE="${CURRENT#v}"
-
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            NEW_TAG="${{ github.event.inputs.version }}"
-            NEW_BARE="${NEW_TAG#v}"
-
-            if ! echo "$NEW_BARE" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-              echo "::error::Version must be in vX.Y.Z semver format, got: $NEW_TAG"
-              exit 1
-            fi
-
-            if [ "$(printf '%s\n' "$CURRENT_BARE" "$NEW_BARE" | sort -V | tail -1)" = "$CURRENT_BARE" ] && [ "$CURRENT_BARE" != "0.0.0" ]; then
-              echo "::error::Version $NEW_TAG is not greater than current $CURRENT"
-              exit 1
-            fi
-          else
-            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_BARE"
-            MINOR=$((MINOR + 1))
-            NEW_BARE="${MAJOR}.${MINOR}.0"
-            NEW_TAG="v${NEW_BARE}"
-          fi
-
-          echo "new_version=$NEW_BARE" >> "$GITHUB_OUTPUT"
-          echo "new_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
-          echo "Releasing: $NEW_TAG"
-
-      - name: Update version in project files
-        run: |
-          VERSION="${{ steps.version.outputs.new_version }}"
-          jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
-          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
-          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
-          sed -i "s/^__version__ = .*/__version__ = \"$VERSION\"/" remote_script/__init__.py
-
-      - name: Commit version bump
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --quiet && echo "No version changes" || git commit -m "release: v${{ steps.version.outputs.new_version }}"
-          git push
+        run: .github/scripts/resolve-version.sh "${{ github.event.inputs.version }}"
 
       - name: Create tag
         run: |
@@ -108,24 +59,20 @@ jobs:
         with:
           ref: ${{ needs.tag.outputs.new_tag }}
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Add Rust targets
-        run: |
-          rustup target add aarch64-apple-darwin
-          rustup target add x86_64-apple-darwin
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
 
-      - name: Install UI dependencies
-        run: cd ui && npm ci
+      - name: Stamp version
+        run: .github/scripts/stamp-version.sh "${{ needs.tag.outputs.new_version }}"
 
-      - name: Build UI
-        run: cd ui && npm run build
+      - run: cd ui && npm ci
+      - run: cd ui && npm run build
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0

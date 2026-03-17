@@ -23,10 +23,7 @@ runs:
 
     - name: Install Python dependencies
       shell: bash
-      run: |
-        python -m venv .venv
-        .venv/bin/pip install poetry
-        VIRTUAL_ENV=$(pwd)/.venv PATH=$(pwd)/.venv/bin:$PATH poetry install
+      run: .github/scripts/install-python-deps.sh
 
     - name: Install UI dependencies
       shell: bash
