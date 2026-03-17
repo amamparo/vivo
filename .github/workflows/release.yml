@@ -24,6 +24,7 @@ jobs:
     outputs:
       new_version: ${{ steps.version.outputs.new_version }}
       new_tag: ${{ steps.version.outputs.new_tag }}
+      prev_tag: ${{ steps.version.outputs.prev_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,6 +73,14 @@ jobs:
       - run: cd ui && npm run build
 
       - name: Build Tauri app
+        run: npx tauri build ${{ matrix.args }}
+
+      - name: Self-sign app bundle
+        run: |
+          TARGET=$(echo "${{ matrix.args }}" | sed 's/--target //')
+          .github/scripts/self-sign.sh "src-tauri/target/$TARGET/release/bundle/macos/Vivo.app"
+
+      - name: Upload artifacts to release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -80,7 +89,14 @@ jobs:
           tauriScript: npx tauri
           tagName: ${{ needs.tag.outputs.new_tag }}
           releaseName: "Vivo ${{ needs.tag.outputs.new_tag }}"
-          releaseBody: "See the [commit log](https://github.com/${{ github.repository }}/commits/${{ needs.tag.outputs.new_tag }}) for changes."
+          releaseBody: |
+            ## Install
+
+            1. Download the `.dmg` for your Mac (Apple Silicon or Intel)
+            2. If macOS says the file is damaged, run: `xattr -cr ~/Downloads/Vivo*.dmg`
+            3. Open the DMG and drag Vivo to Applications
+
+            See the [commit log](https://github.com/${{ github.repository }}/compare/${{ needs.tag.outputs.prev_tag }}...${{ needs.tag.outputs.new_tag }}) for changes.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
