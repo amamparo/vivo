@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::Mutex;
 
-use mdns_sd::{ServiceDaemon, ServiceInfo};
 use qrcode::QrCode;
 use tauri::{
     image::Image,
@@ -153,26 +152,28 @@ fn stop_sidecar(state: &Sidecar) {
     }
 }
 
-fn register_mdns(port: u16) -> Option<ServiceDaemon> {
-    let mdns = ServiceDaemon::new().map_err(|e| log::error!("mDNS daemon failed: {}", e)).ok()?;
-    let ip = local_ip();
-    let service = ServiceInfo::new(
-        "_http._tcp.local.",
-        "Vivo",
-        "vivo.local.",
-        &ip,
-        port,
-        None,
-    )
-    .map_err(|e| log::error!("mDNS service info failed: {}", e))
-    .ok()?;
-
-    mdns.register(service)
-        .map_err(|e| log::error!("mDNS register failed: {}", e))
+fn register_mdns_hostname(ip: &str) -> Option<Child> {
+    // Use macOS dns-sd to register "vivo.local" as an A record via mDNS.
+    // dns-sd -P registers a proxy service with an explicit hostname + IP.
+    // The process must stay alive for the registration to persist.
+    let child = Command::new("dns-sd")
+        .args([
+            "-P",           // register proxy
+            "Vivo",         // service name
+            "_http._tcp",   // service type
+            "local",        // domain
+            "80",           // port (unused for hostname resolution, overridden by URL)
+            "vivo.local.",  // hostname to register
+            ip,             // IP address
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| log::error!("dns-sd registration failed: {}", e))
         .ok()?;
 
-    log::info!("Registered mDNS: http://vivo.local:{}", port);
-    Some(mdns)
+    log::info!("Registered mDNS hostname: vivo.local → {}", ip);
+    Some(child)
 }
 
 fn qr_code_svg(url: &str) -> String {
@@ -231,14 +232,15 @@ fn connection_html(url: &str, qr_svg: &str) -> String {
 pub fn run() {
     let project = project_dir();
     let port = find_open_port();
+    let ip = local_ip();
     let bonjour_url = format!("http://vivo.local:{}", port);
-    let fallback_url = format!("http://{}:{}", local_ip(), port);
+    let fallback_url = format!("http://{}:{}", ip, port);
 
     // Install/update VivOSC remote script
     install_remote_script(&project);
 
-    // Register mDNS so vivo.local resolves on the LAN
-    let _mdns = register_mdns(port);
+    // Register vivo.local hostname via mDNS (dns-sd process stays alive)
+    let _dns_sd = register_mdns_hostname(&ip);
 
     // Pre-generate connection page HTML
     let qr_svg = qr_code_svg(&bonjour_url);
