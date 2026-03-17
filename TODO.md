@@ -1,94 +1,49 @@
-# TODO: Inline AbletonOSC Remote Script
+# TODO: Replace AbletonOSC with a Vivo-owned Remote Script
 
-Replace the cloned AbletonOSC repo with a minimal, Vivo-specific Remote Script that only handles the OSC messages we actually use.
+## Why
 
-## Context
+AbletonOSC is a general-purpose OSC bridge exposing hundreds of Ableton API endpoints. Vivo uses 14 of them. The current setup clones the full repo at install time (`setup_abletonosc.py`), which is fragile and pulls in ~15 handler modules we don't need.
 
-AbletonOSC is a general-purpose OSC bridge with handlers for songs, tracks, clips, devices, scenes, views, and MIDI mapping. Vivo uses ~14 OSC addresses out of hundreds. The full repo is cloned at build time by `setup_abletonosc.py` and copied into Ableton's Remote Scripts directory.
+The goal: a minimal Remote Script checked into this repo that only implements the OSC addresses Vivo actually uses.
 
-The goal is to vendor a stripped-down Remote Script directly in this repo (no git clone step) that only implements what Vivo needs.
+## What Vivo uses
 
-## OSC addresses Vivo actually uses
+The 14 OSC addresses sent by `server/bridge.py`:
 
-From `server/bridge.py`:
+- **Song**: `get/num_tracks`, `get/track_data` (bulk query for name, color, is_foldable, is_grouped, group_track, mute)
+- **Track get/set**: `volume` (mixer_device property), `mute` (direct track property)
+- **Track listeners**: `start_listen`/`stop_listen` for `volume`, `mute`, `output_meter_left`, `output_meter_right`
 
-| Address | Purpose |
-|---|---|
-| `/live/song/get/num_tracks` | Track count |
-| `/live/song/get/track_data` | Bulk track metadata (name, color, is_foldable, is_grouped, group_track, mute) |
-| `/live/track/get/volume` | Query volume |
-| `/live/track/set/volume` | Set volume |
-| `/live/track/get/mute` | Query mute |
-| `/live/track/set/mute` | Set mute |
-| `/live/track/start_listen/volume` | Subscribe to volume changes |
-| `/live/track/stop_listen/volume` | Unsubscribe |
-| `/live/track/start_listen/mute` | Subscribe to mute changes |
-| `/live/track/stop_listen/mute` | Unsubscribe |
-| `/live/track/start_listen/output_meter_left` | Subscribe to left meter |
-| `/live/track/stop_listen/output_meter_left` | Unsubscribe |
-| `/live/track/start_listen/output_meter_right` | Subscribe to right meter |
-| `/live/track/stop_listen/output_meter_right` | Unsubscribe |
+## Plan
 
-## Steps
+### 1. Create `remote_script/`
 
-### 1. Create `remote_script/` directory
+A new top-level directory containing a complete Ableton Remote Script. Port from AbletonOSC:
 
-New top-level directory that will be installed as the Ableton Remote Script. Structure:
+- The OSC server (`osc_server.py`) — non-blocking UDP socket, message dispatch. Can drop wildcard address matching.
+- The base handler (`handler.py`) — `_get_property`, `_set_property`, `_start_listen`, `_stop_listen`. Can drop `_call_method`.
+- The manager (`manager.py`) — ControlSurface subclass with tick loop. Can drop reload_imports, MIDI mapping, log-level-via-OSC.
+- A song handler — only `num_tracks` and `track_data`.
+- A track handler — volume/mute get/set, listeners for volume/mute/meters. Note: volume lives on `track.mixer_device`, not `track` directly, so it needs separate get/set/listen methods from mute. The mixer listener cleanup path must be separate from the base handler's `_clear_listeners` to avoid a KeyError on shutdown (the original AbletonOSC has this bug too).
+- Copy `AbletonOSC/pythonosc/` as-is — Ableton's embedded Python has no pip, so this vendored OSC library must ship with the script.
 
-```
-remote_script/
-├── __init__.py              # create_instance() entry point
-├── manager.py               # ControlSurface subclass (tick loop, init/shutdown)
-├── osc_server.py            # OSC send/receive over UDP (from AbletonOSC)
-├── handler.py               # Base handler with _get_property, _set_property, _start_listen, _stop_listen
-├── song_handler.py          # Only: get/num_tracks, get/track_data
-├── track_handler.py         # Only: get/set volume+mute, start/stop_listen for volume+mute+meters
-├── constants.py             # OSC_LISTEN_PORT, OSC_RESPONSE_PORT
-└── pythonosc/               # Vendored pythonosc (required — Ableton's Python has no pip)
-    └── (copy from AbletonOSC/pythonosc/)
-```
+### 2. Add Ableton API stubs for intellisense
 
-### 2. Port the core infrastructure
+The Remote Script imports `ableton.v2.control_surface` and `Live`, which only exist inside Ableton's Python runtime. Add type stubs (e.g. as git submodules) so editors can resolve these:
 
-Copy and simplify from AbletonOSC:
+- Decompiled framework classes: https://github.com/gluon/AbletonLive11_MIDIRemoteScripts (`ableton/`, `_Framework/`)
+- Live API stubs: https://github.com/cylab/AbletonLive-API-Stub (`Live/`)
 
-- **`osc_server.py`** — Keep as-is, it's the non-blocking UDP socket server. Remove wildcard (`*`) address matching if we don't use it.
-- **`handler.py`** — Keep `_get_property`, `_set_property`, `_start_listen`, `_stop_listen`, `_clear_listeners`. Remove `_call_method` (unused).
-- **`manager.py`** — Simplify from AbletonOSC's version: only init `SongHandler` and `TrackHandler`. Remove reload_imports, MIDI mapping, log level OSC commands. Keep the tick loop, logging, and shutdown.
-- **`__init__.py`** — `create_instance(c_instance)` entry point.
-- **`pythonosc/`** — Copy the entire directory as-is (it's a vendored dependency that Ableton needs at runtime).
+Point Pylance at them via `.vscode/settings.json` `python.analysis.extraPaths`. Wire `git submodule update --init` into `just install` so they're fetched automatically.
 
-### 3. Port the handlers
+### 3. Replace setup script
 
-- **`song_handler.py`** — Only implement:
-  - `/live/song/get/num_tracks` — `lambda _: (len(self.song.tracks),)`
-  - `/live/song/get/track_data` — The bulk query function (supports `track.name`, `track.color`, `track.is_foldable`, `track.is_grouped`, `track.group_track`, `track.mute`)
+Replace `setup_abletonosc.py` with a script that copies `remote_script/` into Ableton's Remote Scripts directory (no git clone). Update `just setup`, README, and CLAUDE.md references.
 
-- **`track_handler.py`** — Only implement:
-  - `get/set` for `mute` (direct track property)
-  - `get/set` for `volume` (mixer_device property — needs the `_get_mixer_property`/`_set_mixer_property`/`_start_mixer_listen`/`_stop_mixer_listen` methods)
-  - `start_listen/stop_listen` for `volume`, `mute`, `output_meter_left`, `output_meter_right`
-  - Keep the `create_track_callback` wrapper that handles track index routing and `*` wildcard
+### 4. Clean up
 
-### 4. Update `setup_abletonosc.py` → `setup_remote_script.py`
-
-- Remove the git clone step entirely
-- Copy `remote_script/` to Ableton's Remote Scripts directory (as `VivOSC` or similar name)
-- Update the Control Surface name in the setup instructions
-
-### 5. Update `justfile`
-
-- `just setup` should call the new setup script
-- Remove any reference to cloning AbletonOSC
-
-### 6. Clean up
-
-- Delete `AbletonOSC/` directory (or remove from `.gitignore` / `.gitmodules` if tracked)
-- Update `README.md` setup instructions (no more "clones AbletonOSC" step)
-- Update `CLAUDE.md` if the architecture description references AbletonOSC
-
-### 7. Test
-
-- Run `just setup` and verify the Remote Script appears in Ableton's Remote Scripts directory
-- Select the new Control Surface in Ableton preferences
-- Run `just dev` and verify the full communication chain still works (track listing, volume control, meters, mute/solo)
+- Delete `AbletonOSC/` and its `.gitignore` entry
+- Delete `setup_abletonosc.py`
+- Update README setup instructions and architecture diagram
+- Run `just test` to verify nothing broke (server tests don't touch the Remote Script)
+- Manual test: `just setup`, select the new Control Surface in Ableton, `just dev`, verify tracks/volume/meters/mute/solo all work
