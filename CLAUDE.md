@@ -20,11 +20,9 @@ Run a single Python test: `just test -- tests/test_solo_manager.py::TestSoloMana
 Run UI tests only: `cd ui && npm test`
 Run a single UI test: `cd ui && npx vitest run -t "test name"`
 
-Poetry requires a workaround due to pyenv: the justfile sets `VIRTUAL_ENV` and `PATH` explicitly. Use `just` commands rather than bare `poetry run`.
+Use `just` commands rather than bare `poetry run` — the justfile has a pyenv workaround that sets `VIRTUAL_ENV` and `PATH` explicitly.
 
-## Logs
-
-`just dev`, `just dev-ui`, and `just run` write output to `logs/server.log` and `logs/ui.log` (gitignored). Read these files to diagnose runtime errors.
+Runtime logs go to `logs/server.log` and `logs/ui.log` (gitignored). Read these to diagnose runtime errors.
 
 ## Architecture
 
@@ -32,44 +30,20 @@ Poetry requires a workaround due to pyenv: the justfile sets `VIRTUAL_ENV` and `
 
 A **mix** is an Ableton group track that contains at least one non-group child track. The group track's name is the mix name, its fader is the master output, and its child tracks are the mixer channels. Mixes can be nested inside an organizational parent group (e.g. a "Monitor" group) — the parent is excluded from mix detection because it only contains group children.
 
-### Backend (`server/`)
+**Backend** (`server/`): FastAPI app with dependency injection via `injector`. `MixerService` holds business logic; `AbletonBridge` ABC abstracts OSC communication so tests can swap in an in-memory implementation.
 
-- **app.py** — `create_app(container: injector.Injector) -> FastAPI` factory. WebSocket endpoint at `/ws`, background loops for meter polling (50ms) and track refresh (5s).
-- **main.py** — Entry point. Wires `ProductionModule` (binds `AbletonOSCBridge`) and creates the app. Uvicorn target: `server.main:app`.
-- **mixer_service.py** — `MixerService` holds all business logic. Injected with `AbletonState`, `SoloManager`, `AbletonBridge`.
-- **bridge.py** — `AbletonBridge` ABC defines the interface (`set_volume`, `set_mute`, `start_listeners`, `stop_all_listeners`, `startup`, `shutdown`, `refresh_tracks`). `AbletonOSCBridge` is the real implementation using python-osc (send port 11000, listen port 11001).
-- **solo_manager.py** — Faux-solo: mutes sibling tracks instead of using Ableton's native solo (which would solo globally across all mixes). Snapshots pre-solo mute states on first solo, restores them when the last solo is toggled off.
-- **models.py** — `Track` dataclass and `AbletonState` (track storage with `get_mix_tracks()` and `get_children(group_index)`).
+**Frontend** (`ui/src/`): Svelte 5 with runes. Tailwind CSS v4 dark theme. Stores are `.svelte.js` files using module-level runes. In dev mode, Vite proxies `/ws` to the FastAPI server.
 
-### Frontend (`ui/src/`)
-
-Svelte 5 with runes (`$state`, `$derived`, `$effect`, `$props`). Tailwind CSS v4 dark theme (`#0a0a0a` bg, `text-neutral-400`). Stores are in `.svelte.js` files using module-level runes.
-
-- **stores/connection.svelte.js** — WebSocket client with auto-reconnect.
-- **stores/mixer.svelte.js** — Reactive state for mixes, tracks, meters. Exports functions (`selectMix`, `setVolume`, `toggleSolo`, etc.) that send WebSocket messages.
-- **components/Fader.svelte** — Vertical range slider with quartic volume scaling (`vol = pos^4 * 4`), tap-vs-drag detection, double-tap reset to unity (70.71% position). Pseudo-element thumb styling requires custom CSS; all other styling uses Tailwind.
-
-### WebSocket Protocol
-
-Client → server: `select_mix`, `set_volume`, `set_mute`, `toggle_solo`, `request_mix_state`
-Server → client: `mixes`, `mix_state`, `meters`
+**Faux-solo** (`solo_manager.py`): Mutes sibling tracks instead of using Ableton's native solo, which would solo globally across all mixes. This is a core design decision — do not replace with native solo.
 
 ## Testing
 
-**No mocking.** Backend tests use dependency injection with real alternative implementations. Frontend tests use Vitest against pure functions.
+**No mocking.** Backend tests use dependency injection with real alternative implementations (`InMemoryBridge` records commands in lists). Frontend tests use Vitest against pure functions in `helpers.js`.
 
-### Backend (`tests/`)
+Backend fixtures live in `tests/conftest.py` and `tests/factories.py`. Unit tests instantiate `MixerService` directly; integration tests use Starlette's `TestClient` with `websocket_connect()`.
 
-- `tests/factories.py` — `InMemoryBridge` (records commands in lists instead of sending OSC) and `make_track()` factory.
-- `tests/conftest.py` — `TestModule` binds `InMemoryBridge` via injector. Fixtures: `container`, `state`, `bridge`, `app`.
-- Unit tests instantiate `MixerService` directly with `InMemoryBridge`. Integration tests use Starlette's `TestClient` with `websocket_connect()`.
+## Maintenance
 
-### Frontend (`ui/src/lib/`)
-
-- `helpers.test.js` — Tests for volume scaling, dB conversion, meter math, and round-trip consistency.
-- All testable math (volume curves, dB conversion, meter level-to-percent) lives in `helpers.js` as pure functions.
-
-## Maintenance Rules
-
-- **Keep tests current.** When changing backend behavior, update or add tests to cover the change. Tests should describe what the code does — prefer clear test names over inline comments.
-- **Keep README.md current.** When adding commands, changing setup steps, or altering project structure, update README.md to match.
+- **Keep tests current.** When changing behavior, update or add tests. Prefer clear test names over inline comments.
+- **Keep README.md current.** When adding commands, changing setup, or altering structure, update README.md to match.
+- **Keep this file current.** When you add new concepts, design decisions, or structural changes that a future Claude session would need to understand, update CLAUDE.md. Remove anything that has become stale. The goal is for this file to stay accurate and useful over time — not to document every file, but to capture what isn't obvious from reading the code.
