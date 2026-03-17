@@ -29,6 +29,7 @@ jobs:
     outputs:
       new_version: ${{ steps.version.outputs.new_version }}
       new_tag: ${{ steps.version.outputs.new_tag }}
+      skip: ${{ steps.version.outputs.skip }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,12 +40,14 @@ jobs:
         run: .github/scripts/resolve-version.sh "${{ github.event.inputs.version }}"
 
       - name: Create tag
+        if: steps.version.outputs.skip != 'true'
         run: |
           git tag "${{ steps.version.outputs.new_tag }}"
           git push origin "${{ steps.version.outputs.new_tag }}"
 
   build:
     needs: tag
+    if: needs.tag.outputs.skip != 'true'
     strategy:
       fail-fast: false
       matrix:
