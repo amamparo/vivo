@@ -1,12 +1,17 @@
 import asyncio
+import logging
+import socket
 import threading
 from abc import ABC, abstractmethod
 
-from pythonosc.dispatcher import Dispatcher
-from pythonosc.osc_server import BlockingOSCUDPServer
-from pythonosc.udp_client import SimpleUDPClient
+from pythonosc.osc_message import OscMessage
+from pythonosc.osc_message_builder import OscMessageBuilder
 
 from server.models import AbletonState, Track
+
+logger = logging.getLogger("vivo")
+
+ABLETON_OSC_PORT = 11000
 
 
 class AbletonBridge(ABC):
@@ -35,38 +40,69 @@ class AbletonBridge(ABC):
 class AbletonOSCBridge(AbletonBridge):
     def __init__(self, state: AbletonState) -> None:
         self._state = state
-        self._client = SimpleUDPClient("127.0.0.1", 11000)
-        self._listen_port = 11001
+        self._ableton_addr = ("127.0.0.1", ABLETON_OSC_PORT)
         self._listeners_started: set[tuple[str, int]] = set()
-        self._server: BlockingOSCUDPServer | None = None
-        self._server_thread: threading.Thread | None = None
+        self._sock: socket.socket | None = None
+        self._recv_thread: threading.Thread | None = None
+        self._running = False
         self._pending: dict[str, asyncio.Future] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._handlers: dict[str, callable] = {}
 
     async def startup(self) -> None:
         self._loop = asyncio.get_event_loop()
 
-        dispatcher = Dispatcher()
-        dispatcher.map("/live/song/get/num_tracks", self._handle_num_tracks)
-        dispatcher.map("/live/song/get/track_data", self._handle_track_data)
-        dispatcher.map("/live/track/get/volume", self._handle_volume)
-        dispatcher.map("/live/track/get/mute", self._handle_mute)
-        dispatcher.map("/live/track/get/output_meter_left", self._handle_meter_left)
-        dispatcher.map("/live/track/get/output_meter_right", self._handle_meter_right)
+        self._handlers = {
+            "/live/song/get/num_tracks": self._handle_num_tracks,
+            "/live/song/get/track_data": self._handle_track_data,
+            "/live/track/get/volume": self._handle_volume,
+            "/live/track/get/mute": self._handle_mute,
+            "/live/track/get/output_meter_left": self._handle_meter_left,
+            "/live/track/get/output_meter_right": self._handle_meter_right,
+        }
 
-        self._server = BlockingOSCUDPServer(("0.0.0.0", self._listen_port), dispatcher)
-        self._server_thread = threading.Thread(target=self._server.serve_forever, daemon=True)
-        self._server_thread.start()
+        # Single UDP socket for both sending and receiving.
+        # Bind to port 0 so the OS picks an available port.
+        # The remote script responds to whatever port we send from.
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._sock.bind(("0.0.0.0", 0))
+        port = self._sock.getsockname()[1]
+        logger.info("OSC bridge listening on port %d, sending to Ableton on port %d", port, ABLETON_OSC_PORT)
+
+        self._running = True
+        self._recv_thread = threading.Thread(target=self._recv_loop, daemon=True)
+        self._recv_thread.start()
 
         await self.refresh_tracks()
 
     async def shutdown(self) -> None:
         self.stop_all_listeners()
-        if self._server:
-            self._server.shutdown()
+        self._running = False
+        if self._sock:
+            self._sock.close()
 
     def _send(self, address: str, *args) -> None:
-        self._client.send_message(address, list(args))
+        builder = OscMessageBuilder(address)
+        for arg in args:
+            builder.add_arg(arg)
+        if self._sock:
+            self._sock.sendto(builder.build().dgram, self._ableton_addr)
+
+    def _recv_loop(self) -> None:
+        while self._running:
+            try:
+                self._sock.settimeout(0.5)
+                data, _ = self._sock.recvfrom(65536)
+                msg = OscMessage(data)
+                handler = self._handlers.get(msg.address)
+                if handler:
+                    handler(msg.address, *msg.params)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            except Exception as e:
+                logger.warning("OSC recv error: %s", e)
 
     async def _query(self, address: str, *args, timeout: float = 2.0):
         future = self._loop.create_future()

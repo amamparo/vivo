@@ -44,3 +44,15 @@ test:
 check:
     cd ui && npm run check
     npx pyright
+
+dev-tauri:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p logs
+    cd ui && npm run build
+    cd ..
+    VIVO_PROJECT_DIR="{{justfile_directory()}}" cargo run --manifest-path src-tauri/Cargo.toml
+
+build-app:
+    cd ui && npm run build
+    cd src-tauri && cargo build --release

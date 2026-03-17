@@ -15,14 +15,13 @@ import logging
 import traceback
 
 OSC_LISTEN_PORT = 11000
-OSC_RESPONSE_PORT = 11001
 
 logger = logging.getLogger("vivosc")
 
 
 class OSCServer:
     def __init__(self):
-        self._remote_addr = ('127.0.0.1', OSC_RESPONSE_PORT)
+        self._remote_addr = None
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._socket.setblocking(False)
         self._socket.bind(('0.0.0.0', OSC_LISTEN_PORT))
@@ -32,6 +31,8 @@ class OSCServer:
         self._callbacks[address] = callback
 
     def send(self, address, params=()):
+        if not self._remote_addr:
+            return
         msg_builder = OscMessageBuilder(address)
         for param in params:
             msg_builder.add_arg(param)
@@ -44,7 +45,7 @@ class OSCServer:
         try:
             while True:
                 data, remote_addr = self._socket.recvfrom(65536)
-                self._remote_addr = (remote_addr[0], OSC_RESPONSE_PORT)
+                self._remote_addr = remote_addr
                 self._parse(data, remote_addr)
         except socket.error as e:
             if e.errno == errno.ECONNRESET:
@@ -79,7 +80,7 @@ class OSCServer:
             return
         rv = callback(message.params)
         if rv is not None:
-            response_addr = (remote_addr[0], OSC_RESPONSE_PORT)
+            response_addr = remote_addr
             msg_builder = OscMessageBuilder(message.address)
             for param in rv:
                 msg_builder.add_arg(param)
