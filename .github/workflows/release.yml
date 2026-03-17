@@ -72,15 +72,7 @@ jobs:
       - run: cd ui && npm ci
       - run: cd ui && npm run build
 
-      - name: Build Tauri app
-        run: npx tauri build ${{ matrix.args }}
-
-      - name: Self-sign app bundle
-        run: |
-          TARGET=$(echo "${{ matrix.args }}" | sed 's/--target //')
-          .github/scripts/self-sign.sh "src-tauri/target/$TARGET/release/bundle/macos/Vivo.app"
-
-      - name: Upload artifacts to release
+      - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -92,8 +84,13 @@ jobs:
           releaseBody: |
             ## Install
 
-            1. Download the `.dmg` for your Mac (Apple Silicon or Intel)
-            2. If macOS says the file is damaged, run: `xattr -cr ~/Downloads/Vivo*.dmg`
+            ```sh
+            # Download and install (Apple Silicon)
+            xattr -cr ~/Downloads/Vivo*.dmg
+            ```
+
+            1. Download the `.dmg` for your Mac below
+            2. Run the command above to clear the macOS quarantine flag
             3. Open the DMG and drag Vivo to Applications
 
             See the [commit log](https://github.com/${{ github.repository }}/compare/${{ needs.tag.outputs.prev_tag }}...${{ needs.tag.outputs.new_tag }}) for changes.
