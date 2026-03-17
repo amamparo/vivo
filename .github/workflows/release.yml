@@ -71,6 +71,7 @@ jobs:
       - name: Stamp version
         run: .github/scripts/stamp-version.sh "${{ needs.tag.outputs.new_version }}"
 
+      - run: npm install --save-dev @tauri-apps/cli
       - run: cd ui && npm ci
       - run: cd ui && npm run build
 
