@@ -4,11 +4,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to release (e.g. v1.2.3)"
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -37,7 +32,7 @@ jobs:
 
       - name: Resolve version
         id: version
-        run: .github/scripts/resolve-version.sh "${{ github.event.inputs.version }}"
+        run: .github/scripts/resolve-version.sh
 
       - name: Create tag
         if: steps.version.outputs.skip != 'true'
